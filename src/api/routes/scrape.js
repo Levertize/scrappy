@@ -13,6 +13,7 @@ const { authenticate } = require('../middleware/auth');
 const { scrapeLimiter } = require('../middleware/rateLimit');
 const { scrapeUrl, isValidUrl } = require('../../scraper/playwright');
 const { parseHtml, trimForAI } = require('../../scraper/parser');
+const { extractData } = require('../../scraper/extractor');
 
 const router = express.Router();
 
@@ -84,39 +85,56 @@ async function runScrapeJob(jobId, url, userId) {
 
     // Step 2: Parse HTML with Cheerio
     const parsed = parseHtml(html, url);
-
-    // Step 3: Save results to database
-    const resultId = uuidv4();
     const extractedText = trimForAI(parsed.textContent);
+
+    // Step 3: AI Extraction (if API key is configured)
+    let aiExtracted = null;
+    let aiUsage = null;
+    try {
+      const { extracted, usage } = await extractData(
+        extractedText,
+        parsed.metadata,
+      );
+      aiExtracted = extracted;
+      aiUsage = usage;
+    } catch (aiErr) {
+      console.warn(`⚠️ AI extraction skipped: ${aiErr.message}`);
+      // Continue without AI — use parser data only
+    }
+
+    // Step 4: Save results to database
+    const resultId = uuidv4();
+    const resultData = {
+      title: title || parsed.metadata.title,
+      metadata: parsed.metadata,
+      tables: parsed.tables,
+      links: parsed.links.slice(0, 20),
+      images: parsed.images.slice(0, 10),
+      wordCount: parsed.wordCount,
+      aiExtracted,
+      aiUsage,
+    };
 
     db.prepare(
       'INSERT INTO scrape_results (id, job_id, data, raw_html, extracted_text) VALUES (?, ?, ?, ?, ?)'
-    ).run(
-      resultId,
-      jobId,
-      JSON.stringify({
-        title: title || parsed.metadata.title,
-        metadata: parsed.metadata,
-        tables: parsed.tables,
-        links: parsed.links.slice(0, 20),
-        images: parsed.images.slice(0, 10),
-        wordCount: parsed.wordCount,
-      }),
-      html,
-      extractedText,
-    );
+    ).run(resultId, jobId, JSON.stringify(resultData), html, extractedText);
+
+    // Calculate items count from AI extraction or fallback to parser
+    const itemsCount = aiExtracted?.items?.length
+      || (parsed.tables.length > 0 ? parsed.tables[0].rows.length : 0)
+      || parsed.wordCount;
 
     // Update job status to success
     db.prepare(
       'UPDATE scrape_jobs SET status = ?, items_count = ?, name = ?, updated_at = datetime(\'now\') WHERE id = ?'
-    ).run('success', parsed.tables.length > 0 ? parsed.tables[0].rows.length : parsed.wordCount, title || new URL(url).hostname, jobId);
+    ).run('success', itemsCount, title || new URL(url).hostname, jobId);
 
     // Increment user's scrape count
     db.prepare(
       'UPDATE users SET scrape_count = scrape_count + 1 WHERE id = ?'
     ).run(userId);
 
-    console.log(`✅ Scrape complete: ${url} (${parsed.wordCount} words)`);
+    console.log(`✅ Scrape complete: ${url} (${parsed.wordCount} words, AI: ${aiExtracted ? aiExtracted.items?.length + ' items' : 'skipped'})`);
 
   } catch (err) {
     // Update job status to failed
