@@ -29,8 +29,8 @@ app.use(express.static(path.join(__dirname, 'ui')));
 // ============================================
 app.use('/api/auth', require('./api/routes/auth'));
 app.use('/api/scrape', require('./api/routes/scrape'));
-// app.use('/api/chat', require('./api/routes/chat'));
-// app.use('/api/export', require('./api/routes/export'));
+app.use('/api/chat', require('./api/routes/chat'));
+app.use('/api/export', require('./api/routes/export'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

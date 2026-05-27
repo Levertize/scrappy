@@ -211,7 +211,7 @@ rippleStyle.textContent = `
 document.head.appendChild(rippleStyle);
 
 /* ============================================
-   CHAT FUNCTIONALITY
+   CHAT FUNCTIONALITY (Real API)
    ============================================ */
 function initChat() {
   const chatInput = document.getElementById('chat-input');
@@ -229,7 +229,7 @@ function initChat() {
     }
   });
 
-  function sendMessage() {
+  async function sendMessage() {
     const text = chatInput.value.trim();
     if (!text) return;
 
@@ -237,11 +237,54 @@ function initChat() {
     appendMessage('user', text);
     chatInput.value = '';
 
-    // Simulate AI thinking
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(text);
-      appendMessage('ai', aiResponse);
-    }, 1000 + Math.random() * 1500);
+    // Show typing indicator
+    const typingEl = showTypingIndicator();
+
+    try {
+      const res = await apiFetch('/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+
+      // Remove typing indicator
+      typingEl.remove();
+
+      if (res.ok) {
+        appendMessage('ai', data.message);
+      } else {
+        appendMessage('ai', `⚠️ ${data.error?.message || 'Gagal mendapatkan respons AI.'}`);
+      }
+    } catch (err) {
+      typingEl.remove();
+      appendMessage('ai', '⚠️ Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+    }
+  }
+
+  function showTypingIndicator() {
+    const div = document.createElement('div');
+    div.className = 'chat-message ai';
+    div.id = 'typing-indicator';
+    div.innerHTML = `
+      <div class="chat-avatar"><i class="fas fa-robot"></i></div>
+      <div class="chat-bubble" style="display:flex;gap:4px;padding:12px 16px;">
+        <span class="typing-dot" style="width:6px;height:6px;border-radius:50%;background:var(--gray-400);animation:typingBounce 1.4s infinite both;"></span>
+        <span class="typing-dot" style="width:6px;height:6px;border-radius:50%;background:var(--gray-400);animation:typingBounce 1.4s infinite both;animation-delay:0.2s;"></span>
+        <span class="typing-dot" style="width:6px;height:6px;border-radius:50%;background:var(--gray-400);animation:typingBounce 1.4s infinite both;animation-delay:0.4s;"></span>
+      </div>
+    `;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Add typing animation if not already present
+    if (!document.getElementById('typing-style')) {
+      const style = document.createElement('style');
+      style.id = 'typing-style';
+      style.textContent = `@keyframes typingBounce { 0%,80%,100%{transform:scale(0);} 40%{transform:scale(1);} }`;
+      document.head.appendChild(style);
+    }
+
+    return div;
   }
 
   function appendMessage(type, text) {
@@ -270,18 +313,6 @@ function initChat() {
 
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
-  }
-
-  function generateAIResponse(question) {
-    const responses = [
-      'Berdasarkan data yang telah di-scrape, saya menemukan <strong>126 produk</strong> dari tokopedia.com/kategori/elektronik. Rata-rata harga produk adalah <strong>Rp 17.699.200</strong>.',
-      'Dari 5 produk teratas berdasarkan rating, <strong>iPhone 15 Pro Max</strong> dan <strong>MacBook Air M2</strong> memiliki rating tertinggi yaitu <strong>4.9 ⭐</strong>.',
-      'Saya menemukan <strong>3 produk</strong> dengan harga di bawah Rp 10.000.000. Produk termurah adalah <strong>Sony WH-1000XM5</strong> seharga Rp 5.499.000.',
-      'Analisis tren harga menunjukkan bahwa kategori <strong>smartphone</strong> memiliki rata-rata harga lebih tinggi dibanding kategori <strong>laptop</strong> dalam data yang tersedia.',
-      'Terdapat <strong>5 toko official</strong> dalam data scraping terakhir. Semua produk dari toko official memiliki rating di atas <strong>4.5 ⭐</strong>.',
-      'Berdasarkan data terakhir, tidak ada produk yang mengalami perubahan harga dalam 24 jam terakhir. Saya akan memberitahu Anda jika ada perubahan.',
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
   }
 
   function escapeHtml(text) {
