@@ -4,11 +4,24 @@
  */
 
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const { db } = require('../../storage/db');
-const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(authenticate);
+
+// Custom auth that supports both header and query token (for downloads)
+router.use((req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1] || req.query.token;
+  if (!token) {
+    return res.status(401).json({ error: { message: 'Authentication required.' } });
+  }
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key');
+    next();
+  } catch {
+    return res.status(401).json({ error: { message: 'Invalid token.' } });
+  }
+});
 
 /**
  * GET /api/export/:jobId?format=json|csv

@@ -529,10 +529,12 @@ if (notifBtn) {
    ============================================ */
 const newChatBtn = document.getElementById('btn-new-chat');
 if (newChatBtn) {
-  newChatBtn.addEventListener('click', () => {
+  newChatBtn.addEventListener('click', async () => {
     const chatMessages = document.getElementById('chat-messages');
     if (chatMessages) {
       chatMessages.innerHTML = '';
+      // Clear server-side history too
+      try { await apiFetch('/api/chat/history', { method: 'DELETE' }); } catch {}
       // Add welcome message
       const welcome = document.createElement('div');
       welcome.className = 'chat-message ai';
@@ -546,4 +548,274 @@ if (newChatBtn) {
       chatMessages.appendChild(welcome);
     }
   });
+}
+
+/* ============================================
+   NEW SCRAPE — Modal & Flow
+   ============================================ */
+const navNewScrape = document.getElementById('nav-new-scrape');
+if (navNewScrape) {
+  navNewScrape.addEventListener('click', (e) => {
+    e.preventDefault();
+    showScrapeModal();
+  });
+}
+
+function showScrapeModal() {
+  // Remove existing modal
+  const existing = document.getElementById('scrape-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'scrape-modal';
+  overlay.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+  `;
+  overlay.innerHTML = `
+    <div style="background:white; border-radius:16px; padding:32px; width:480px; max-width:90vw;
+                box-shadow:0 20px 60px rgba(0,0,0,0.15); animation: fadeInUp 0.3s ease-out;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h3 style="font-size:1.15rem; font-weight:700;">New Scrape</h3>
+        <button id="close-scrape-modal" style="background:none; border:none; font-size:1.2rem; color:#94a3b8; cursor:pointer;">&times;</button>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">URL to scrape</label>
+        <input type="url" id="scrape-url-input" placeholder="https://example.com/products"
+               style="width:100%; padding:12px 14px; border:1.5px solid #e2e8f0; border-radius:8px;
+                      font-family:inherit; font-size:0.9rem; outline:none; transition:border 0.2s;"
+               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">Task name (optional)</label>
+        <input type="text" id="scrape-name-input" placeholder="E.g., Product Catalog"
+               style="width:100%; padding:12px 14px; border:1.5px solid #e2e8f0; border-radius:8px;
+                      font-family:inherit; font-size:0.9rem; outline:none; transition:border 0.2s;"
+               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div id="scrape-status" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:8px;
+           font-size:0.82rem; font-weight:500;"></div>
+      <button id="btn-start-scrape"
+              style="width:100%; padding:13px; background:linear-gradient(135deg,#6366f1,#4338ca);
+                     color:white; border:none; border-radius:8px; font-family:inherit; font-size:0.95rem;
+                     font-weight:600; cursor:pointer; transition:all 0.2s;"
+              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(99,102,241,0.35)'"
+              onmouseout="this.style.transform='none';this.style.boxShadow='none'">
+        <i class="fas fa-rocket"></i> Start Scraping
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Add fade animation
+  if (!document.getElementById('modal-style')) {
+    const s = document.createElement('style');
+    s.id = 'modal-style';
+    s.textContent = `@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
+    document.head.appendChild(s);
+  }
+
+  // Close modal
+  document.getElementById('close-scrape-modal').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Start scrape
+  document.getElementById('btn-start-scrape').addEventListener('click', async () => {
+    const url = document.getElementById('scrape-url-input').value.trim();
+    const name = document.getElementById('scrape-name-input').value.trim();
+    const statusEl = document.getElementById('scrape-status');
+    const btn = document.getElementById('btn-start-scrape');
+
+    if (!url) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = '#fee2e2';
+      statusEl.style.color = '#ef4444';
+      statusEl.textContent = '⚠️ URL wajib diisi.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping...';
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#dbeafe';
+    statusEl.style.color = '#3b82f6';
+    statusEl.textContent = '🔄 Memulai scraping...';
+
+    try {
+      const res = await apiFetch('/api/scrape', {
+        method: 'POST',
+        body: JSON.stringify({ url, name: name || undefined }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error?.message || 'Scrape failed');
+
+      statusEl.style.background = '#d1fae5';
+      statusEl.style.color = '#10b981';
+      statusEl.textContent = `✅ Scraping dimulai! Job: ${data.job.name}`;
+
+      // Poll for completion
+      const jobId = data.job.id;
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const pollRes = await apiFetch(`/api/scrape/${jobId}`);
+          const pollData = await pollRes.json();
+
+          if (pollData.job.status === 'success') {
+            clearInterval(poll);
+            statusEl.textContent = `✅ Selesai! ${pollData.job.items_count} items diekstrak.`;
+            btn.innerHTML = '<i class="fas fa-check"></i> Selesai!';
+            // Refresh dashboard data
+            setTimeout(() => { overlay.remove(); loadDashboardData(); }, 1500);
+          } else if (pollData.job.status === 'failed') {
+            clearInterval(poll);
+            statusEl.style.background = '#fee2e2';
+            statusEl.style.color = '#ef4444';
+            statusEl.textContent = `❌ Gagal: ${pollData.job.error_message}`;
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-rocket"></i> Coba Lagi';
+          }
+        } catch {}
+        if (attempts > 60) clearInterval(poll); // Max 2 minutes
+      }, 2000);
+
+    } catch (err) {
+      statusEl.style.background = '#fee2e2';
+      statusEl.style.color = '#ef4444';
+      statusEl.textContent = `❌ ${err.message}`;
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-rocket"></i> Start Scraping';
+    }
+  });
+}
+
+/* ============================================
+   LOAD REAL DASHBOARD DATA
+   ============================================ */
+async function loadDashboardData() {
+  try {
+    const res = await apiFetch('/api/scrape');
+    if (!res.ok) return;
+    const { jobs } = await res.json();
+
+    if (jobs.length === 0) return;
+
+    const tbody = document.querySelector('#tasks-table tbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    const icons = ['shopping-cart', 'newspaper', 'laptop', 'hotel', 'tag', 'globe', 'code', 'chart-bar'];
+    const colors = ['ecommerce', 'news', 'price', 'review', 'promo', 'ecommerce', 'news', 'price'];
+
+    jobs.slice(0, 5).forEach((job, i) => {
+      const icon = icons[i % icons.length];
+      const color = colors[i % colors.length];
+      const timeAgo = getTimeAgo(job.created_at);
+      const statusClass = job.status === 'success' ? 'status-success' : job.status === 'failed' ? 'status-failed' : 'status-running';
+      const statusLabel = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+      const shortUrl = job.url.replace(/^https?:\/\//, '').substring(0, 40);
+
+      tbody.innerHTML += `
+        <tr>
+          <td><div class="task-name"><div class="task-icon ${color}"><i class="fas fa-${icon}"></i></div><span class="task-label">${escapeHtmlGlobal(job.name)}</span></div></td>
+          <td><span class="url-link">${escapeHtmlGlobal(shortUrl)}</span></td>
+          <td><span class="status-badge ${statusClass}"><span class="status-dot"></span> ${statusLabel}</span></td>
+          <td>${job.items_count || 0} items</td>
+          <td style="color:var(--text-secondary);">${timeAgo}</td>
+          <td><button class="more-btn" data-job-id="${job.id}"><i class="fas fa-ellipsis-vertical"></i></button></td>
+        </tr>
+      `;
+    });
+
+    // Re-init tooltips for new rows
+    initTooltips();
+
+  } catch (err) {
+    console.warn('Failed to load dashboard data:', err);
+  }
+}
+
+function getTimeAgo(dateStr) {
+  const date = new Date(dateStr + 'Z');
+  const now = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+  return `${Math.floor(diff / 86400)} days ago`;
+}
+
+function escapeHtmlGlobal(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+/* ============================================
+   EXPORT BUTTONS
+   ============================================ */
+const exportBtn = document.getElementById('btn-export');
+if (exportBtn) {
+  exportBtn.addEventListener('click', async () => {
+    // Get the first successful job for export
+    try {
+      const res = await apiFetch('/api/scrape');
+      if (!res.ok) return;
+      const { jobs } = await res.json();
+      const successJob = jobs.find(j => j.status === 'success');
+      if (!successJob) {
+        alert('Tidak ada data untuk diekspor. Silakan scrape website terlebih dahulu.');
+        return;
+      }
+      showExportMenu(exportBtn, successJob.id);
+    } catch {}
+  });
+}
+
+function showExportMenu(anchor, jobId) {
+  const existing = document.querySelector('.export-menu');
+  if (existing) { existing.remove(); return; }
+
+  const menu = document.createElement('div');
+  menu.className = 'export-menu';
+  const rect = anchor.getBoundingClientRect();
+  menu.style.cssText = `
+    position:fixed; top:${rect.bottom+4}px; left:${rect.left}px;
+    background:white; border:1px solid #e2e8f0; border-radius:8px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.1); padding:4px; z-index:1000; min-width:140px;
+    animation: fadeInUp 0.2s ease-out;
+  `;
+
+  [
+    { label: 'JSON', format: 'json', icon: 'fa-file-code' },
+    { label: 'CSV', format: 'csv', icon: 'fa-file-csv' },
+  ].forEach(opt => {
+    const item = document.createElement('div');
+    item.style.cssText = `display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:0.85rem;
+      color:#334155;cursor:pointer;border-radius:6px;transition:background 0.15s;`;
+    item.innerHTML = `<i class="fas ${opt.icon}" style="width:16px;text-align:center;color:#6366f1;"></i> Export ${opt.label}`;
+    item.addEventListener('mouseenter', () => { item.style.background = '#f1f5f9'; });
+    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
+    item.addEventListener('click', () => {
+      menu.remove();
+      window.open(`${API_BASE}/api/export/${jobId}?format=${opt.format}&token=${getToken()}`, '_blank');
+    });
+    menu.appendChild(item);
+  });
+
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); }
+    });
+  }, 10);
+}
+
+// Load real data on dashboard load
+if (getToken()) {
+  setTimeout(loadDashboardData, 500);
 }
