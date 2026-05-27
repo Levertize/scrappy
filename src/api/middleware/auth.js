@@ -40,6 +40,16 @@ function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+
+    // Verify user still exists in DB (prevents stale token issues after DB reset)
+    const { db } = require('../../storage/db');
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(decoded.id);
+    if (!user) {
+      return res.status(401).json({
+        error: { message: 'User not found. Please login again.' },
+      });
+    }
+
     req.user = decoded;
     next();
   } catch (err) {

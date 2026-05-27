@@ -1,31 +1,16 @@
 /**
  * AI Web Scraper — Dashboard Application Logic
- * Handles interactivity, animations, and mock data flows
+ * SPA Navigation with real API integration
  */
 
 const API_BASE = window.location.origin;
 
-/**
- * Get stored auth token
- */
-function getToken() {
-  return localStorage.getItem('token');
-}
+/* ============================================
+   AUTH HELPERS
+   ============================================ */
+function getToken() { return localStorage.getItem('token'); }
+function getUser() { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } }
 
-/**
- * Get stored user object
- */
-function getUser() {
-  try {
-    return JSON.parse(localStorage.getItem('user'));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Auth-protected fetch wrapper
- */
 async function apiFetch(url, options = {}) {
   const token = getToken();
   const headers = {
@@ -43,85 +28,138 @@ async function apiFetch(url, options = {}) {
   return res;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Auth check — redirect to login if no token
-  if (!getToken()) {
-    window.location.href = '/login.html';
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function getTimeAgo(dateStr) {
+  if (!dateStr) return '';
+  const now = new Date();
+  const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+/* ============================================
+   SPA NAVIGATION SYSTEM
+   ============================================ */
+const PAGE_CONFIG = {
+  'dashboard':       { title: 'Dashboard', subtitle: 'Monitor and manage your scraping tasks', showRightPanel: true, loader: loadPageDashboard },
+  'new-scrape':      { title: 'New Scrape', subtitle: 'Start a new web scraping task', showRightPanel: false, loader: showNewScrapeModal },
+  'my-scrapes':      { title: 'My Scrapes', subtitle: 'All your scraping tasks and results', showRightPanel: false, loader: loadPageMyScrapes },
+  'monitoring':      { title: 'Monitoring', subtitle: 'Monitor URLs for changes automatically', showRightPanel: false, loader: loadPageMonitoring },
+  'alerts':          { title: 'Alerts', subtitle: 'Notifications and alert history', showRightPanel: false, loader: loadPageAlerts },
+  'change-history':  { title: 'Change History', subtitle: 'Detected changes across monitored URLs', showRightPanel: false, loader: loadPageChangeHistory },
+  'chat':            { title: 'Chat with Data', subtitle: 'Ask AI questions about your scraped data', showRightPanel: false, loader: loadPageChat },
+  'exports':         { title: 'Exports', subtitle: 'Download your scraped data', showRightPanel: false, loader: loadPageExports },
+};
+
+let currentPage = 'dashboard';
+
+function navigateTo(page) {
+  const config = PAGE_CONFIG[page];
+  if (!config) return;
+
+  // For new-scrape, always show modal on dashboard
+  if (page === 'new-scrape') {
+    config.loader();
     return;
   }
 
-  // Display user info
+  currentPage = page;
+
+  // Update header
+  document.getElementById('page-title').textContent = config.title;
+  document.getElementById('page-subtitle').textContent = config.subtitle;
+
+  // Toggle page sections
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  const target = document.getElementById(`page-${page}`);
+  if (target) target.classList.add('active');
+
+  // Toggle right panel
+  const layout = document.querySelector('.app-layout');
+  if (config.showRightPanel) {
+    layout.classList.remove('hide-right-panel');
+  } else {
+    layout.classList.add('hide-right-panel');
+  }
+
+  // Update nav active state
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (navItem) navItem.classList.add('active');
+
+  // Scroll to top
+  document.getElementById('main-content').scrollTop = 0;
+
+  // Load page data
+  config.loader();
+}
+
+/* ============================================
+   INITIALIZATION
+   ============================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!getToken()) { window.location.href = '/login.html'; return; }
+
   initUserProfile();
-
   initNavigation();
-  initChat();
-  initAnimations();
-  initTooltips();
   initLogout();
+  initNotificationBtn();
+  initChatWidgets();
 
-  // Phase 2: Load real monitoring + notifications
-  loadMonitoringStatus();
-  loadChangeHistory();
+  // Initial page load
+  navigateTo('dashboard');
   loadNotificationBadge();
   loadSidebarStats();
-  // Poll notifications every 60s
+
+  // Poll notifications
   setInterval(loadNotificationBadge, 60000);
 });
 
-/**
- * Display user name & initials from stored data
- */
+/* ============================================
+   USER PROFILE
+   ============================================ */
 function initUserProfile() {
   const user = getUser();
   if (!user) return;
-
-  const userNameEl = document.querySelector('.user-name');
-  const userPlanEl = document.querySelector('.user-plan');
-  const userAvatarEl = document.querySelector('.user-avatar');
-
-  if (userNameEl) userNameEl.textContent = user.username || 'User';
-  if (userPlanEl) userPlanEl.textContent = (user.plan || 'free').charAt(0).toUpperCase() + (user.plan || 'free').slice(1) + ' Plan';
-
-  // Generate initials
-  if (userAvatarEl && user.username) {
+  const el = document.querySelector('.user-name');
+  if (el) el.textContent = user.username || 'User';
+  const avatar = document.querySelector('.user-avatar');
+  if (avatar && user.username) {
     const parts = user.username.split(/[\s._-]+/);
-    const initials = parts.length >= 2
+    avatar.textContent = parts.length >= 2
       ? (parts[0][0] + parts[1][0]).toUpperCase()
       : user.username.slice(0, 2).toUpperCase();
-    userAvatarEl.textContent = initials;
   }
 }
 
-/**
- * Add logout functionality to user profile dropdown
- */
 function initLogout() {
-  const userProfile = document.getElementById('user-profile');
-  if (userProfile) {
-    userProfile.addEventListener('click', () => {
-      showUserMenu(userProfile);
-    });
-  }
+  const profile = document.getElementById('user-profile');
+  if (profile) profile.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showUserMenu(profile);
+  });
 }
 
 function showUserMenu(anchor) {
   const existing = document.querySelector('.user-menu');
   if (existing) { existing.remove(); return; }
 
+  const rect = anchor.getBoundingClientRect();
   const menu = document.createElement('div');
   menu.className = 'user-menu';
   menu.style.cssText = `
-    position: absolute;
-    top: ${anchor.getBoundingClientRect().bottom + 6}px;
-    right: 24px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    padding: 4px;
-    z-index: 1000;
-    min-width: 160px;
-    animation: fadeInUp 0.2s ease-out;
+    position:fixed; top:${rect.bottom+6}px; right:24px;
+    background:white; border:1px solid #e2e8f0; border-radius:10px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.1); padding:4px; z-index:2000;
+    min-width:160px; animation:fadeInUp 0.2s ease-out;
   `;
 
   const items = [
@@ -136,15 +174,11 @@ function showUserMenu(anchor) {
 
   items.forEach(item => {
     const el = document.createElement('div');
-    el.style.cssText = `
-      display: flex; align-items: center; gap: 8px; padding: 9px 12px;
-      font-size: 0.85rem; color: ${item.color || '#334155'}; cursor: pointer;
-      border-radius: 7px; transition: background 0.15s ease;
-    `;
+    el.style.cssText = `display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:0.85rem;color:${item.color||'#334155'};cursor:pointer;border-radius:7px;transition:background 0.15s;`;
     el.innerHTML = `<i class="fas ${item.icon}" style="width:16px;text-align:center;"></i> ${item.label}`;
-    el.addEventListener('mouseenter', () => { el.style.background = '#f1f5f9'; });
-    el.addEventListener('mouseleave', () => { el.style.background = 'transparent'; });
-    el.addEventListener('click', () => { menu.remove(); item.action(); });
+    el.addEventListener('mouseenter', () => el.style.background = '#f1f5f9');
+    el.addEventListener('mouseleave', () => el.style.background = 'transparent');
+    el.addEventListener('click', (e) => { e.stopPropagation(); menu.remove(); item.action(); });
     menu.appendChild(el);
   });
 
@@ -152,8 +186,7 @@ function showUserMenu(anchor) {
   setTimeout(() => {
     document.addEventListener('click', function close(e) {
       if (!menu.contains(e.target) && !anchor.contains(e.target)) {
-        menu.remove();
-        document.removeEventListener('click', close);
+        menu.remove(); document.removeEventListener('click', close);
       }
     });
   }, 10);
@@ -163,821 +196,46 @@ function showUserMenu(anchor) {
    NAVIGATION
    ============================================ */
 function initNavigation() {
-  const navItems = document.querySelectorAll('.nav-item');
-  
-  navItems.forEach(item => {
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
-      
-      // Remove active class from all
-      navItems.forEach(nav => nav.classList.remove('active'));
-      
-      // Add active class to clicked
-      item.classList.add('active');
-      
-      // Add a subtle ripple effect
-      createRipple(item, e);
+      navigateTo(item.dataset.page);
     });
   });
-}
 
-function createRipple(element, event) {
-  const ripple = document.createElement('span');
-  const rect = element.getBoundingClientRect();
-  const size = Math.max(rect.width, rect.height);
-  
-  ripple.style.cssText = `
-    position: absolute;
-    width: ${size}px;
-    height: ${size}px;
-    border-radius: 50%;
-    background: rgba(99, 102, 241, 0.15);
-    transform: scale(0);
-    animation: rippleEffect 0.6s ease-out;
-    left: ${event.clientX - rect.left - size / 2}px;
-    top: ${event.clientY - rect.top - size / 2}px;
-    pointer-events: none;
-  `;
-  
-  element.style.position = 'relative';
-  element.style.overflow = 'hidden';
-  element.appendChild(ripple);
-  
-  ripple.addEventListener('animationend', () => ripple.remove());
-}
+  // "View All" buttons cross-links
+  const viewAllTasks = document.getElementById('btn-view-all-tasks');
+  if (viewAllTasks) viewAllTasks.addEventListener('click', () => navigateTo('my-scrapes'));
 
-// Add ripple keyframes dynamically
-const rippleStyle = document.createElement('style');
-rippleStyle.textContent = `
-  @keyframes rippleEffect {
-    to {
-      transform: scale(2.5);
-      opacity: 0;
-    }
-  }
-`;
-document.head.appendChild(rippleStyle);
+  const viewAllMon = document.getElementById('btn-view-all-monitoring');
+  if (viewAllMon) viewAllMon.addEventListener('click', () => navigateTo('monitoring'));
 
-/* ============================================
-   CHAT FUNCTIONALITY (Real API)
-   ============================================ */
-function initChat() {
-  const chatInput = document.getElementById('chat-input');
-  const sendBtn = document.getElementById('btn-chat-send');
-  const chatMessages = document.getElementById('chat-messages');
-
-  // Send message on button click
-  sendBtn.addEventListener('click', () => sendMessage());
-
-  // Send message on Enter key
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  async function sendMessage() {
-    const text = chatInput.value.trim();
-    if (!text) return;
-
-    // Add user message
-    appendMessage('user', text);
-    chatInput.value = '';
-
-    // Show typing indicator
-    const typingEl = showTypingIndicator();
-
-    try {
-      const res = await apiFetch('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({ message: text }),
-      });
-      const data = await res.json();
-
-      // Remove typing indicator
-      typingEl.remove();
-
-      if (res.ok) {
-        appendMessage('ai', data.message);
-      } else {
-        appendMessage('ai', `⚠️ ${data.error?.message || 'Gagal mendapatkan respons AI.'}`);
-      }
-    } catch (err) {
-      typingEl.remove();
-      appendMessage('ai', '⚠️ Tidak dapat terhubung ke server. Periksa koneksi Anda.');
-    }
-  }
-
-  function showTypingIndicator() {
-    const div = document.createElement('div');
-    div.className = 'chat-message ai';
-    div.id = 'typing-indicator';
-    div.innerHTML = `
-      <div class="chat-avatar"><i class="fas fa-robot"></i></div>
-      <div class="chat-bubble" style="display:flex;gap:4px;padding:12px 16px;">
-        <span class="typing-dot" style="width:6px;height:6px;border-radius:50%;background:var(--gray-400);animation:typingBounce 1.4s infinite both;"></span>
-        <span class="typing-dot" style="width:6px;height:6px;border-radius:50%;background:var(--gray-400);animation:typingBounce 1.4s infinite both;animation-delay:0.2s;"></span>
-        <span class="typing-dot" style="width:6px;height:6px;border-radius:50%;background:var(--gray-400);animation:typingBounce 1.4s infinite both;animation-delay:0.4s;"></span>
-      </div>
-    `;
-    chatMessages.appendChild(div);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-
-    // Add typing animation if not already present
-    if (!document.getElementById('typing-style')) {
-      const style = document.createElement('style');
-      style.id = 'typing-style';
-      style.textContent = `@keyframes typingBounce { 0%,80%,100%{transform:scale(0);} 40%{transform:scale(1);} }`;
-      document.head.appendChild(style);
-    }
-
-    return div;
-  }
-
-  function appendMessage(type, text) {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `chat-message ${type}`;
-
-    if (type === 'user') {
-      messageDiv.innerHTML = `
-        <div class="chat-bubble">
-          ${escapeHtml(text)}
-          <div class="chat-time">${timeStr} <span class="chat-check">✓✓</span></div>
-        </div>
-      `;
-    } else {
-      messageDiv.innerHTML = `
-        <div class="chat-avatar"><i class="fas fa-robot"></i></div>
-        <div class="chat-bubble">
-          ${text}
-          <div class="chat-time">${timeStr}</div>
-        </div>
-      `;
-    }
-
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
+  const viewAllChanges = document.getElementById('btn-view-all-changes');
+  if (viewAllChanges) viewAllChanges.addEventListener('click', () => navigateTo('change-history'));
 }
 
 /* ============================================
-   ANIMATIONS & INTERACTIONS
+   NOTIFICATION BADGE
    ============================================ */
-function initAnimations() {
-  // Hover effect on table rows
-  const tableRows = document.querySelectorAll('.data-table tbody tr, .extracted-table tbody tr');
-  tableRows.forEach(row => {
-    row.addEventListener('mouseenter', () => {
-      row.style.transform = 'scale(1.005)';
-      row.style.transition = 'transform 0.15s ease';
-    });
-    row.addEventListener('mouseleave', () => {
-      row.style.transform = 'scale(1)';
-    });
-  });
-
-  // Animate plan stat bars on load
-  const statFills = document.querySelectorAll('.plan-stat-fill');
-  statFills.forEach((fill, index) => {
-    const targetWidth = fill.style.width;
-    fill.style.width = '0%';
-    setTimeout(() => {
-      fill.style.width = targetWidth;
-    }, 300 + index * 150);
-  });
-
-  // Button hover effects
-  const buttons = document.querySelectorAll('.btn-primary, .btn-outline, .card-action');
-  buttons.forEach(btn => {
-    btn.addEventListener('mouseenter', () => {
-      btn.style.transition = 'all 0.2s ease';
-    });
-  });
-
-  // Quick Start card pulse effect
-  const quickStart = document.getElementById('quick-start-card');
-  if (quickStart) {
-    quickStart.addEventListener('mouseenter', () => {
-      quickStart.style.boxShadow = '0 8px 25px rgba(99, 102, 241, 0.12)';
-      quickStart.style.transition = 'box-shadow 0.3s ease';
-    });
-    quickStart.addEventListener('mouseleave', () => {
-      quickStart.style.boxShadow = 'none';
-    });
-  }
-
-  // Counter animation for stats
-  animateCounters();
-
-  // Intersection Observer for scroll animations
-  initScrollAnimations();
-}
-
-function animateCounters() {
-  const counters = document.querySelectorAll('[data-count]');
-  counters.forEach(counter => {
-    const target = parseInt(counter.dataset.count);
-    let current = 0;
-    const increment = target / 40;
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= target) {
-        counter.textContent = target;
-        clearInterval(timer);
-      } else {
-        counter.textContent = Math.floor(current);
-      }
-    }, 30);
+function initNotificationBtn() {
+  const btn = document.getElementById('btn-notifications');
+  if (btn) btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showNotificationPanel();
   });
 }
 
-function initScrollAnimations() {
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.style.opacity = '1';
-        entry.target.style.transform = 'translateY(0)';
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.1 });
-
-  document.querySelectorAll('.card').forEach(card => {
-    observer.observe(card);
-  });
-}
-
-/* ============================================
-   TOOLTIPS
-   ============================================ */
-function initTooltips() {
-  // URL truncation hover shows full URL
-  const urlLinks = document.querySelectorAll('.url-link');
-  urlLinks.forEach(link => {
-    link.title = link.textContent;
-    link.style.cursor = 'pointer';
-    
-    link.addEventListener('click', () => {
-      // Visual feedback
-      const originalColor = link.style.color;
-      link.style.color = 'var(--primary-700)';
-      setTimeout(() => {
-        link.style.color = originalColor;
-      }, 200);
-    });
-  });
-
-  // More button dropdown simulation
-  const moreBtns = document.querySelectorAll('.more-btn');
-  moreBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showContextMenu(btn);
-    });
-  });
-}
-
-function showContextMenu(button) {
-  // Remove existing menus
-  const existing = document.querySelector('.context-menu');
-  if (existing) existing.remove();
-
-  const menu = document.createElement('div');
-  menu.className = 'context-menu';
-  menu.style.cssText = `
-    position: absolute;
-    background: white;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    padding: 4px;
-    z-index: 1000;
-    min-width: 160px;
-    animation: fadeInUp 0.2s ease-out;
-  `;
-
-  const items = [
-    { icon: 'fa-eye', label: 'View Data', color: '' },
-    { icon: 'fa-redo', label: 'Re-run Scrape', color: '' },
-    { icon: 'fa-download', label: 'Export', color: '' },
-    { icon: 'fa-clock', label: 'Schedule', color: '' },
-    { icon: 'fa-trash', label: 'Delete', color: 'var(--error)' },
-  ];
-
-  items.forEach(item => {
-    const menuItem = document.createElement('div');
-    menuItem.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      font-size: 0.82rem;
-      color: ${item.color || 'var(--text-primary)'};
-      cursor: pointer;
-      border-radius: 6px;
-      transition: background 0.15s ease;
-    `;
-    menuItem.innerHTML = `<i class="fas ${item.icon}" style="width: 16px; text-align: center;"></i> ${item.label}`;
-    menuItem.addEventListener('mouseenter', () => {
-      menuItem.style.background = item.color ? 'var(--error-light)' : 'var(--gray-50)';
-    });
-    menuItem.addEventListener('mouseleave', () => {
-      menuItem.style.background = 'transparent';
-    });
-    menuItem.addEventListener('click', () => {
-      menu.remove();
-    });
-    menu.appendChild(menuItem);
-  });
-
-  // Position the menu
-  const rect = button.getBoundingClientRect();
-  menu.style.top = `${rect.bottom + 4}px`;
-  menu.style.left = `${rect.left - 140}px`;
-  
-  document.body.appendChild(menu);
-
-  // Close on outside click
-  const closeMenu = (e) => {
-    if (!menu.contains(e.target)) {
-      menu.remove();
-      document.removeEventListener('click', closeMenu);
-    }
-  };
-  setTimeout(() => document.addEventListener('click', closeMenu), 10);
-}
-
-/* ============================================
-   NOTIFICATION BUTTON
-   ============================================ */
-const notifBtn = document.getElementById('btn-notifications');
-if (notifBtn) {
-  notifBtn.addEventListener('click', () => {
-    const badge = notifBtn.querySelector('.notification-badge');
-    if (badge) {
-      badge.style.transform = 'scale(0)';
-      badge.style.transition = 'transform 0.3s ease';
-      setTimeout(() => badge.remove(), 300);
-    }
-  });
-}
-
-/* ============================================
-   NEW CHAT BUTTON
-   ============================================ */
-const newChatBtn = document.getElementById('btn-new-chat');
-if (newChatBtn) {
-  newChatBtn.addEventListener('click', async () => {
-    const chatMessages = document.getElementById('chat-messages');
-    if (chatMessages) {
-      chatMessages.innerHTML = '';
-      // Clear server-side history too
-      try { await apiFetch('/api/chat/history', { method: 'DELETE' }); } catch {}
-      // Add welcome message
-      const welcome = document.createElement('div');
-      welcome.className = 'chat-message ai';
-      welcome.innerHTML = `
-        <div class="chat-avatar"><i class="fas fa-robot"></i></div>
-        <div class="chat-bubble">
-          Halo! Saya siap membantu menganalisis data scraping Anda. Apa yang ingin Anda ketahui?
-          <div class="chat-time">${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</div>
-        </div>
-      `;
-      chatMessages.appendChild(welcome);
-    }
-  });
-}
-
-/* ============================================
-   NEW SCRAPE — Modal & Flow
-   ============================================ */
-const navNewScrape = document.getElementById('nav-new-scrape');
-if (navNewScrape) {
-  navNewScrape.addEventListener('click', (e) => {
-    e.preventDefault();
-    showScrapeModal();
-  });
-}
-
-function showScrapeModal() {
-  // Remove existing modal
-  const existing = document.getElementById('scrape-modal');
-  if (existing) existing.remove();
-
-  const overlay = document.createElement('div');
-  overlay.id = 'scrape-modal';
-  overlay.style.cssText = `
-    position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 2000;
-    display: flex; align-items: center; justify-content: center;
-    animation: fadeIn 0.2s ease-out;
-  `;
-  overlay.innerHTML = `
-    <div style="background:white; border-radius:16px; padding:32px; width:480px; max-width:90vw;
-                box-shadow:0 20px 60px rgba(0,0,0,0.15); animation: fadeInUp 0.3s ease-out;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h3 style="font-size:1.15rem; font-weight:700;">New Scrape</h3>
-        <button id="close-scrape-modal" style="background:none; border:none; font-size:1.2rem; color:#94a3b8; cursor:pointer;">&times;</button>
-      </div>
-      <div style="margin-bottom:16px;">
-        <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">URL to scrape</label>
-        <input type="url" id="scrape-url-input" placeholder="https://example.com/products"
-               style="width:100%; padding:12px 14px; border:1.5px solid #e2e8f0; border-radius:8px;
-                      font-family:inherit; font-size:0.9rem; outline:none; transition:border 0.2s;"
-               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
-      </div>
-      <div style="margin-bottom:20px;">
-        <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">Task name (optional)</label>
-        <input type="text" id="scrape-name-input" placeholder="E.g., Product Catalog"
-               style="width:100%; padding:12px 14px; border:1.5px solid #e2e8f0; border-radius:8px;
-                      font-family:inherit; font-size:0.9rem; outline:none; transition:border 0.2s;"
-               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
-      </div>
-      <div id="scrape-status" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:8px;
-           font-size:0.82rem; font-weight:500;"></div>
-      <button id="btn-start-scrape"
-              style="width:100%; padding:13px; background:linear-gradient(135deg,#6366f1,#4338ca);
-                     color:white; border:none; border-radius:8px; font-family:inherit; font-size:0.95rem;
-                     font-weight:600; cursor:pointer; transition:all 0.2s;"
-              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(99,102,241,0.35)'"
-              onmouseout="this.style.transform='none';this.style.boxShadow='none'">
-        <i class="fas fa-rocket"></i> Start Scraping
-      </button>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  // Add fade animation
-  if (!document.getElementById('modal-style')) {
-    const s = document.createElement('style');
-    s.id = 'modal-style';
-    s.textContent = `@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
-    document.head.appendChild(s);
-  }
-
-  // Close modal
-  document.getElementById('close-scrape-modal').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  // Start scrape
-  document.getElementById('btn-start-scrape').addEventListener('click', async () => {
-    const url = document.getElementById('scrape-url-input').value.trim();
-    const name = document.getElementById('scrape-name-input').value.trim();
-    const statusEl = document.getElementById('scrape-status');
-    const btn = document.getElementById('btn-start-scrape');
-
-    if (!url) {
-      statusEl.style.display = 'block';
-      statusEl.style.background = '#fee2e2';
-      statusEl.style.color = '#ef4444';
-      statusEl.textContent = '⚠️ URL wajib diisi.';
-      return;
-    }
-
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping...';
-    statusEl.style.display = 'block';
-    statusEl.style.background = '#dbeafe';
-    statusEl.style.color = '#3b82f6';
-    statusEl.textContent = '🔄 Memulai scraping...';
-
-    try {
-      const res = await apiFetch('/api/scrape', {
-        method: 'POST',
-        body: JSON.stringify({ url, name: name || undefined }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error?.message || 'Scrape failed');
-
-      statusEl.style.background = '#d1fae5';
-      statusEl.style.color = '#10b981';
-      statusEl.textContent = `✅ Scraping dimulai! Job: ${data.job.name}`;
-
-      // Poll for completion
-      const jobId = data.job.id;
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          const pollRes = await apiFetch(`/api/scrape/${jobId}`);
-          const pollData = await pollRes.json();
-
-          if (pollData.job.status === 'success') {
-            clearInterval(poll);
-            statusEl.textContent = `✅ Selesai! ${pollData.job.items_count} items diekstrak.`;
-            btn.innerHTML = '<i class="fas fa-check"></i> Selesai!';
-            // Refresh dashboard data
-            setTimeout(() => { overlay.remove(); loadDashboardData(); }, 1500);
-          } else if (pollData.job.status === 'failed') {
-            clearInterval(poll);
-            statusEl.style.background = '#fee2e2';
-            statusEl.style.color = '#ef4444';
-            statusEl.textContent = `❌ Gagal: ${pollData.job.error_message}`;
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-rocket"></i> Coba Lagi';
-          }
-        } catch {}
-        if (attempts > 60) clearInterval(poll); // Max 2 minutes
-      }, 2000);
-
-    } catch (err) {
-      statusEl.style.background = '#fee2e2';
-      statusEl.style.color = '#ef4444';
-      statusEl.textContent = `❌ ${err.message}`;
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-rocket"></i> Start Scraping';
-    }
-  });
-}
-
-/* ============================================
-   LOAD REAL DASHBOARD DATA
-   ============================================ */
-async function loadDashboardData() {
-  try {
-    const res = await apiFetch('/api/scrape');
-    if (!res.ok) return;
-    const { jobs } = await res.json();
-
-    if (jobs.length === 0) return;
-
-    const tbody = document.querySelector('#tasks-table tbody');
-    if (!tbody) return;
-
-    tbody.innerHTML = '';
-    const icons = ['shopping-cart', 'newspaper', 'laptop', 'hotel', 'tag', 'globe', 'code', 'chart-bar'];
-    const colors = ['ecommerce', 'news', 'price', 'review', 'promo', 'ecommerce', 'news', 'price'];
-
-    jobs.slice(0, 5).forEach((job, i) => {
-      const icon = icons[i % icons.length];
-      const color = colors[i % colors.length];
-      const timeAgo = getTimeAgo(job.created_at);
-      const statusClass = job.status === 'success' ? 'status-success' : job.status === 'failed' ? 'status-failed' : 'status-running';
-      const statusLabel = job.status.charAt(0).toUpperCase() + job.status.slice(1);
-      const shortUrl = job.url.replace(/^https?:\/\//, '').substring(0, 40);
-
-      tbody.innerHTML += `
-        <tr>
-          <td><div class="task-name"><div class="task-icon ${color}"><i class="fas fa-${icon}"></i></div><span class="task-label">${escapeHtmlGlobal(job.name)}</span></div></td>
-          <td><span class="url-link">${escapeHtmlGlobal(shortUrl)}</span></td>
-          <td><span class="status-badge ${statusClass}"><span class="status-dot"></span> ${statusLabel}</span></td>
-          <td>${job.items_count || 0} items</td>
-          <td style="color:var(--text-secondary);">${timeAgo}</td>
-          <td><button class="more-btn" data-job-id="${job.id}"><i class="fas fa-ellipsis-vertical"></i></button></td>
-        </tr>
-      `;
-    });
-
-    // Re-init tooltips for new rows
-    initTooltips();
-
-  } catch (err) {
-    console.warn('Failed to load dashboard data:', err);
-  }
-}
-
-function getTimeAgo(dateStr) {
-  const date = new Date(dateStr + 'Z');
-  const now = new Date();
-  const diff = Math.floor((now - date) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-  return `${Math.floor(diff / 86400)} days ago`;
-}
-
-function escapeHtmlGlobal(text) {
-  const d = document.createElement('div');
-  d.textContent = text;
-  return d.innerHTML;
-}
-
-/* ============================================
-   EXPORT BUTTONS
-   ============================================ */
-const exportBtn = document.getElementById('btn-export');
-if (exportBtn) {
-  exportBtn.addEventListener('click', async () => {
-    // Get the first successful job for export
-    try {
-      const res = await apiFetch('/api/scrape');
-      if (!res.ok) return;
-      const { jobs } = await res.json();
-      const successJob = jobs.find(j => j.status === 'success');
-      if (!successJob) {
-        alert('Tidak ada data untuk diekspor. Silakan scrape website terlebih dahulu.');
-        return;
-      }
-      showExportMenu(exportBtn, successJob.id);
-    } catch {}
-  });
-}
-
-function showExportMenu(anchor, jobId) {
-  const existing = document.querySelector('.export-menu');
-  if (existing) { existing.remove(); return; }
-
-  const menu = document.createElement('div');
-  menu.className = 'export-menu';
-  const rect = anchor.getBoundingClientRect();
-  menu.style.cssText = `
-    position:fixed; top:${rect.bottom+4}px; left:${rect.left}px;
-    background:white; border:1px solid #e2e8f0; border-radius:8px;
-    box-shadow:0 10px 25px rgba(0,0,0,0.1); padding:4px; z-index:1000; min-width:140px;
-    animation: fadeInUp 0.2s ease-out;
-  `;
-
-  [
-    { label: 'JSON', format: 'json', icon: 'fa-file-code' },
-    { label: 'CSV', format: 'csv', icon: 'fa-file-csv' },
-  ].forEach(opt => {
-    const item = document.createElement('div');
-    item.style.cssText = `display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:0.85rem;
-      color:#334155;cursor:pointer;border-radius:6px;transition:background 0.15s;`;
-    item.innerHTML = `<i class="fas ${opt.icon}" style="width:16px;text-align:center;color:#6366f1;"></i> Export ${opt.label}`;
-    item.addEventListener('mouseenter', () => { item.style.background = '#f1f5f9'; });
-    item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
-    item.addEventListener('click', () => {
-      menu.remove();
-      window.open(`${API_BASE}/api/export/${jobId}?format=${opt.format}&token=${getToken()}`, '_blank');
-    });
-    menu.appendChild(item);
-  });
-
-  document.body.appendChild(menu);
-  setTimeout(() => {
-    document.addEventListener('click', function close(e) {
-      if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', close); }
-    });
-  }, 10);
-}
-
-// Load real data on dashboard load
-if (getToken()) {
-  setTimeout(loadDashboardData, 500);
-}
-
-/* ============================================
-   PHASE 2: MONITORING STATUS (Real API)
-   ============================================ */
-async function loadMonitoringStatus() {
-  try {
-    const res = await apiFetch('/api/schedule');
-    if (!res.ok) return;
-    const { schedules } = await res.json();
-
-    const container = document.getElementById('monitoring-status-card');
-    if (!container) return;
-
-    // Keep card header, replace content
-    const items = container.querySelectorAll('.monitor-item');
-    items.forEach(item => item.remove());
-
-    if (schedules.length === 0) {
-      const empty = document.createElement('div');
-      empty.style.cssText = 'padding:16px;text-align:center;color:#94a3b8;font-size:0.85rem;';
-      empty.innerHTML = '<i class="fas fa-radar" style="font-size:1.5rem;margin-bottom:8px;display:block;"></i>Belum ada monitoring. Klik tombol di bawah untuk mulai.';
-      container.appendChild(empty);
-    } else {
-      schedules.forEach(s => {
-        const lastChange = s.latestChange;
-        const badge = lastChange?.has_changes
-          ? '<span class="monitor-badge changes-detected">Changes detected</span>'
-          : '<span class="monitor-badge no-changes">No changes</span>';
-        const timeAgo = s.last_run_at ? getTimeAgo(s.last_run_at) : 'Not run yet';
-
-        const el = document.createElement('div');
-        el.className = 'monitor-item';
-        el.innerHTML = `
-          <div class="monitor-icon"><i class="fas fa-globe"></i></div>
-          <div class="monitor-info">
-            <div class="monitor-url">${escapeHtmlGlobal(s.job_name)}</div>
-            <div class="monitor-interval">${s.interval_label} · <span style="color:${s.status==='active'?'#10b981':'#f59e0b'}">${s.status}</span></div>
-          </div>
-          <div class="monitor-status">
-            <div class="monitor-time">${timeAgo}</div>
-            ${badge}
-          </div>
-        `;
-        container.appendChild(el);
-      });
-    }
-
-    // Add "+ Add Monitor" button
-    if (!document.getElementById('btn-add-monitor')) {
-      const btn = document.createElement('button');
-      btn.id = 'btn-add-monitor';
-      btn.style.cssText = 'width:100%;padding:10px;margin-top:8px;background:transparent;border:1.5px dashed #cbd5e1;border-radius:8px;color:#6366f1;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit;';
-      btn.innerHTML = '<i class="fas fa-plus"></i> Add Monitor';
-      btn.addEventListener('mouseenter', () => { btn.style.borderColor = '#6366f1'; btn.style.background = '#f8faff'; });
-      btn.addEventListener('mouseleave', () => { btn.style.borderColor = '#cbd5e1'; btn.style.background = 'transparent'; });
-      btn.addEventListener('click', showAddMonitorModal);
-      container.appendChild(btn);
-    }
-  } catch (err) {
-    console.warn('Failed to load monitoring:', err);
-  }
-}
-
-/* ============================================
-   PHASE 2: CHANGE HISTORY (Real API)
-   ============================================ */
-async function loadChangeHistory() {
-  try {
-    const res = await apiFetch('/api/schedule');
-    if (!res.ok) return;
-    const { schedules } = await res.json();
-
-    const card = document.getElementById('change-summary-card');
-    if (!card) return;
-
-    // Remove existing items
-    const items = card.querySelectorAll('.change-summary-item');
-    items.forEach(item => item.remove());
-
-    // Collect all changes with schedule info
-    let allChanges = [];
-    for (const s of schedules) {
-      if (s.latestChange && s.latestChange.has_changes) {
-        allChanges.push({ ...s.latestChange, scheduleName: s.job_name, url: s.url });
-      }
-    }
-
-    if (allChanges.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'change-summary-item';
-      empty.style.cssText = 'text-align:center;color:#94a3b8;font-size:0.85rem;padding:12px;';
-      empty.textContent = 'Belum ada perubahan terdeteksi.';
-      card.appendChild(empty);
-      return;
-    }
-
-    allChanges.slice(0, 3).forEach(ch => {
-      const el = document.createElement('div');
-      el.className = 'change-summary-item';
-      el.innerHTML = `
-        <div class="change-summary-header">
-          <div class="change-source">
-            <div class="change-source-icon"><i class="fas fa-globe"></i></div>
-            ${escapeHtmlGlobal(ch.scheduleName)}
-          </div>
-          <span class="change-time">${getTimeAgo(ch.created_at)}</span>
-        </div>
-        <div class="change-label">AI Summary</div>
-        <div class="change-text">${escapeHtmlGlobal(ch.change_summary || '')}</div>
-      `;
-      card.appendChild(el);
-    });
-  } catch (err) {
-    console.warn('Failed to load change history:', err);
-  }
-}
-
-/* ============================================
-   PHASE 2: NOTIFICATION BADGE (Real API)
-   ============================================ */
 async function loadNotificationBadge() {
   try {
     const res = await apiFetch('/api/notifications/unread-count');
     if (!res.ok) return;
     const { count } = await res.json();
-
     const badge = document.querySelector('.notification-badge');
-    const notifBtnEl = document.getElementById('btn-notifications');
-
-    if (count > 0) {
-      if (badge) {
-        badge.textContent = count > 99 ? '99+' : count;
-        badge.style.transform = 'scale(1)';
-      } else if (notifBtnEl) {
-        const newBadge = document.createElement('span');
-        newBadge.className = 'notification-badge';
-        newBadge.textContent = count > 99 ? '99+' : count;
-        notifBtnEl.appendChild(newBadge);
-      }
-    } else if (badge) {
-      badge.style.transform = 'scale(0)';
+    if (badge) {
+      badge.textContent = count > 99 ? '99+' : count;
+      badge.style.display = count > 0 ? 'flex' : 'none';
     }
   } catch {}
-}
-
-/* ============================================
-   PHASE 2: NOTIFICATION PANEL
-   ============================================ */
-const notifBtnPhase2 = document.getElementById('btn-notifications');
-if (notifBtnPhase2) {
-  notifBtnPhase2.addEventListener('click', showNotificationPanel);
 }
 
 async function showNotificationPanel() {
@@ -992,18 +250,16 @@ async function showNotificationPanel() {
   panel.style.cssText = `
     position:fixed; top:${rect.bottom+8}px; right:24px; width:360px; max-height:450px;
     background:white; border:1px solid #e2e8f0; border-radius:12px;
-    box-shadow:0 15px 40px rgba(0,0,0,0.12); z-index:1000; overflow:hidden;
-    animation: fadeInUp 0.2s ease-out;
+    box-shadow:0 15px 40px rgba(0,0,0,0.12); z-index:2000; overflow:hidden;
+    animation:fadeInUp 0.2s ease-out;
   `;
-
-  panel.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+  panel.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i></div>';
   document.body.appendChild(panel);
 
   try {
     const res = await apiFetch('/api/notifications?limit=10');
     const { notifications, unreadCount } = await res.json();
 
-    // Mark all as read
     if (unreadCount > 0) {
       await apiFetch('/api/notifications/read-all', { method: 'PUT' });
       loadNotificationBadge();
@@ -1011,7 +267,7 @@ async function showNotificationPanel() {
 
     let html = `<div style="padding:14px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-weight:700;font-size:0.95rem;">Notifications</span>
-      <span style="font-size:0.75rem;color:#94a3b8;">${notifications.length} terbaru</span>
+      <span style="font-size:0.75rem;color:#6366f1;cursor:pointer;" onclick="navigateTo('alerts');document.querySelector('.notif-panel')?.remove();">View All</span>
     </div>`;
 
     if (notifications.length === 0) {
@@ -1021,24 +277,21 @@ async function showNotificationPanel() {
       notifications.forEach(n => {
         const icon = n.type === 'change_detected' ? 'fa-arrow-trend-up' : n.type === 'scrape_failed' ? 'fa-triangle-exclamation' : 'fa-bell';
         const iconColor = n.type === 'change_detected' ? '#10b981' : n.type === 'scrape_failed' ? '#ef4444' : '#6366f1';
-        html += `
-          <div style="padding:12px 16px;border-bottom:1px solid #f8fafc;${n.is_read?'':'background:#f8faff;'}">
-            <div style="display:flex;gap:10px;">
-              <div style="width:32px;height:32px;border-radius:8px;background:${iconColor}15;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="fas ${icon}" style="color:${iconColor};font-size:0.8rem;"></i>
-              </div>
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:0.82rem;font-weight:600;color:#1e293b;">${escapeHtmlGlobal(n.title)}</div>
-                <div style="font-size:0.78rem;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlGlobal(n.message).substring(0,80)}</div>
-                <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">${getTimeAgo(n.created_at)}</div>
-              </div>
+        html += `<div style="padding:12px 16px;border-bottom:1px solid #f8fafc;${n.is_read?'':'background:#f8faff;'}">
+          <div style="display:flex;gap:10px;">
+            <div style="width:32px;height:32px;border-radius:8px;background:${iconColor}15;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <i class="fas ${icon}" style="color:${iconColor};font-size:0.8rem;"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.82rem;font-weight:600;color:#1e293b;">${escapeHtml(n.title)}</div>
+              <div style="font-size:0.78rem;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(n.message).substring(0,80)}</div>
+              <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">${getTimeAgo(n.created_at)}</div>
             </div>
           </div>
-        `;
+        </div>`;
       });
       html += '</div>';
     }
-
     panel.innerHTML = html;
   } catch {
     panel.innerHTML = '<div style="padding:16px;text-align:center;color:#ef4444;">Gagal memuat notifikasi</div>';
@@ -1047,21 +300,663 @@ async function showNotificationPanel() {
   setTimeout(() => {
     document.addEventListener('click', function close(e) {
       if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-        panel.remove();
-        document.removeEventListener('click', close);
+        panel.remove(); document.removeEventListener('click', close);
       }
     });
   }, 10);
 }
 
 /* ============================================
-   PHASE 2: ADD MONITOR MODAL
+   SIDEBAR STATS
+   ============================================ */
+async function loadSidebarStats() {
+  try {
+    const [scrapeRes, schedRes] = await Promise.all([
+      apiFetch('/api/scrape'),
+      apiFetch('/api/schedule'),
+    ]);
+    const planHeaders = document.querySelectorAll('.plan-stat-header');
+    const planFills = document.querySelectorAll('.plan-stat-fill');
+    if (scrapeRes.ok) {
+      const { jobs } = await scrapeRes.json();
+      const c = jobs.length;
+      if (planHeaders[0]) planHeaders[0].innerHTML = `<span>Scrapes / month</span><span>${c} / 50</span>`;
+      if (planFills[0]) planFills[0].style.width = `${Math.min(c/50*100,100)}%`;
+    }
+    if (schedRes.ok) {
+      const { schedules } = await schedRes.json();
+      const c = schedules.length;
+      if (planHeaders[1]) planHeaders[1].innerHTML = `<span>Monitored URLs</span><span>${c} / 10</span>`;
+      if (planFills[1]) planFills[1].style.width = `${Math.min(c/10*100,100)}%`;
+    }
+  } catch {}
+}
+
+/* ============================================
+   PAGE: DASHBOARD
+   ============================================ */
+async function loadPageDashboard() {
+  loadDashboardTasks();
+  loadMonitoringWidget();
+  loadChangeWidget();
+}
+
+async function loadDashboardTasks() {
+  try {
+    const res = await apiFetch('/api/scrape');
+    if (!res.ok) return;
+    const { jobs } = await res.json();
+    const tbody = document.querySelector('#tasks-table tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (jobs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:32px;">Belum ada scraping task. Klik <b>New Scrape</b> untuk mulai!</td></tr>';
+      return;
+    }
+
+    jobs.slice(0, 5).forEach(job => {
+      const statusClass = job.status === 'success' ? 'status-success' : job.status === 'failed' ? 'status-failed' : 'status-running';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><div class="task-name"><div class="task-icon news"><i class="fas fa-globe"></i></div><span class="task-label">${escapeHtml(job.name)}</span></div></td>
+        <td><span class="url-link">${escapeHtml(job.url?.replace(/^https?:\/\//, '').substring(0,35))}</span></td>
+        <td><span class="status-badge ${statusClass}"><span class="status-dot"></span> ${job.status}</span></td>
+        <td>${job.items_count || 0} items</td>
+        <td style="color:var(--text-secondary);">${getTimeAgo(job.created_at)}</td>
+        <td><button class="more-btn" onclick="showJobActions('${job.id}',this)"><i class="fas fa-ellipsis-vertical"></i></button></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch {}
+}
+
+async function loadMonitoringWidget() {
+  try {
+    const res = await apiFetch('/api/schedule');
+    if (!res.ok) return;
+    const { schedules } = await res.json();
+    const card = document.getElementById('monitoring-status-card');
+    if (!card) return;
+    card.querySelectorAll('.monitor-item').forEach(i => i.remove());
+    const addBtn = card.querySelector('#btn-add-monitor-widget');
+    if (addBtn) addBtn.remove();
+
+    if (schedules.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:16px;text-align:center;color:#94a3b8;font-size:0.85rem;';
+      empty.innerHTML = 'Belum ada monitoring.';
+      empty.className = 'monitor-item';
+      card.appendChild(empty);
+    } else {
+      schedules.slice(0, 3).forEach(s => {
+        const badge = s.latestChange?.has_changes
+          ? '<span class="monitor-badge changes-detected">Changes detected</span>'
+          : '<span class="monitor-badge no-changes">No changes</span>';
+        const el = document.createElement('div');
+        el.className = 'monitor-item';
+        el.innerHTML = `
+          <div class="monitor-icon"><i class="fas fa-globe"></i></div>
+          <div class="monitor-info">
+            <div class="monitor-url">${escapeHtml(s.job_name)}</div>
+            <div class="monitor-interval">${s.interval_label}</div>
+          </div>
+          <div class="monitor-status">
+            <div class="monitor-time">${s.last_run_at ? getTimeAgo(s.last_run_at) : 'Pending'}</div>
+            ${badge}
+          </div>`;
+        card.appendChild(el);
+      });
+    }
+  } catch {}
+}
+
+async function loadChangeWidget() {
+  try {
+    const res = await apiFetch('/api/schedule');
+    if (!res.ok) return;
+    const { schedules } = await res.json();
+    const card = document.getElementById('change-summary-card');
+    if (!card) return;
+    card.querySelectorAll('.change-summary-item').forEach(i => i.remove());
+
+    const changes = schedules.filter(s => s.latestChange?.has_changes);
+    if (changes.length === 0) {
+      const el = document.createElement('div');
+      el.className = 'change-summary-item';
+      el.style.cssText = 'text-align:center;color:#94a3b8;font-size:0.85rem;padding:12px;';
+      el.textContent = 'Belum ada perubahan terdeteksi.';
+      card.appendChild(el);
+    } else {
+      changes.slice(0, 2).forEach(s => {
+        const el = document.createElement('div');
+        el.className = 'change-summary-item';
+        el.innerHTML = `
+          <div class="change-summary-header">
+            <div class="change-source"><div class="change-source-icon"><i class="fas fa-globe"></i></div>${escapeHtml(s.job_name)}</div>
+            <span class="change-time">${getTimeAgo(s.latestChange.created_at)}</span>
+          </div>
+          <div class="change-label">AI Summary</div>
+          <div class="change-text">${escapeHtml(s.latestChange.change_summary || '')}</div>`;
+        card.appendChild(el);
+      });
+    }
+  } catch {}
+}
+
+function showJobActions(jobId, btnEl) {
+  const existing = document.querySelector('.job-actions-menu');
+  if (existing) existing.remove();
+
+  const rect = btnEl.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'job-actions-menu';
+  menu.style.cssText = `position:fixed;top:${rect.bottom+4}px;left:${rect.left-120}px;background:white;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.1);padding:4px;z-index:1000;min-width:140px;`;
+
+  const actions = [
+    { icon: 'fa-eye', label: 'View Data', action: () => navigateTo('my-scrapes') },
+    { icon: 'fa-file-export', label: 'Export JSON', action: () => window.open(`${API_BASE}/api/export/${jobId}?format=json&token=${getToken()}`, '_blank') },
+    { icon: 'fa-file-csv', label: 'Export CSV', action: () => window.open(`${API_BASE}/api/export/${jobId}?format=csv&token=${getToken()}`, '_blank') },
+    { icon: 'fa-trash', label: 'Delete', action: async () => { await apiFetch(`/api/scrape/${jobId}`, { method: 'DELETE' }); loadPageDashboard(); loadPageMyScrapes(); }, color: '#ef4444' },
+  ];
+
+  actions.forEach(a => {
+    const el = document.createElement('div');
+    el.style.cssText = `display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:0.82rem;color:${a.color||'#334155'};cursor:pointer;border-radius:6px;transition:background 0.15s;`;
+    el.innerHTML = `<i class="fas ${a.icon}" style="width:14px;text-align:center;"></i>${a.label}`;
+    el.addEventListener('mouseenter', () => el.style.background = '#f1f5f9');
+    el.addEventListener('mouseleave', () => el.style.background = 'transparent');
+    el.addEventListener('click', () => { menu.remove(); a.action(); });
+    menu.appendChild(el);
+  });
+
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', function close() { menu.remove(); document.removeEventListener('click', close); }), 10);
+}
+
+/* ============================================
+   PAGE: MY SCRAPES
+   ============================================ */
+async function loadPageMyScrapes() {
+  try {
+    const res = await apiFetch('/api/scrape');
+    if (!res.ok) return;
+    const { jobs } = await res.json();
+    const tbody = document.querySelector('#all-scrapes-table tbody');
+    const empty = document.getElementById('scrapes-empty');
+
+    if (jobs.length === 0) {
+      if (tbody) tbody.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+
+    if (empty) empty.style.display = 'none';
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    jobs.forEach(job => {
+      const statusClass = job.status === 'success' ? 'status-success' : job.status === 'failed' ? 'status-failed' : 'status-running';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><div class="task-name"><div class="task-icon news"><i class="fas fa-globe"></i></div><span class="task-label">${escapeHtml(job.name)}</span></div></td>
+        <td><span class="url-link">${escapeHtml(job.url?.replace(/^https?:\/\//, '').substring(0,40))}</span></td>
+        <td><span class="status-badge ${statusClass}"><span class="status-dot"></span> ${job.status}</span></td>
+        <td>${job.items_count || 0} items</td>
+        <td style="color:var(--text-secondary);">${getTimeAgo(job.created_at)}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" onclick="window.open('${API_BASE}/api/export/${job.id}?format=json&token=${getToken()}','_blank')"><i class="fas fa-download"></i></button>
+            <button class="btn btn-outline btn-sm" onclick="deleteJob('${job.id}')" style="color:#ef4444;border-color:#fecaca;"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  } catch {}
+
+  // Wire buttons
+  const scrapeBtn = document.getElementById('btn-scrape-from-list');
+  if (scrapeBtn) scrapeBtn.onclick = showNewScrapeModal;
+
+  // Search filter
+  const search = document.getElementById('scrapes-search');
+  if (search) search.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#all-scrapes-table tbody tr').forEach(tr => {
+      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+
+async function deleteJob(jobId) {
+  if (!confirm('Delete this scrape job?')) return;
+  await apiFetch(`/api/scrape/${jobId}`, { method: 'DELETE' });
+  loadPageMyScrapes();
+  loadSidebarStats();
+}
+
+/* ============================================
+   PAGE: MONITORING
+   ============================================ */
+async function loadPageMonitoring() {
+  try {
+    const res = await apiFetch('/api/schedule');
+    if (!res.ok) return;
+    const { schedules } = await res.json();
+    const list = document.getElementById('monitoring-list');
+    const empty = document.getElementById('monitoring-empty');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (schedules.length === 0) {
+      if (empty) empty.style.display = 'block';
+    } else {
+      if (empty) empty.style.display = 'none';
+      schedules.forEach(s => {
+        const statusColor = s.status === 'active' ? '#10b981' : '#f59e0b';
+        const el = document.createElement('div');
+        el.className = 'monitor-card-item';
+        el.innerHTML = `
+          <div class="monitor-card-icon"><i class="fas fa-globe"></i></div>
+          <div class="monitor-card-info">
+            <div class="monitor-card-name">${escapeHtml(s.job_name)}</div>
+            <div class="monitor-card-url">${escapeHtml(s.url)}</div>
+            <div class="monitor-card-meta">${s.interval_label} · <span style="color:${statusColor};font-weight:600;">${s.status}</span> · ${s.run_count} runs · Last: ${s.last_run_at ? getTimeAgo(s.last_run_at) : 'Never'}</div>
+          </div>
+          <div class="monitor-card-actions">
+            <button onclick="toggleSchedule('${s.id}','${s.status}')" title="${s.status==='active'?'Pause':'Resume'}">
+              <i class="fas ${s.status==='active'?'fa-pause':'fa-play'}"></i>
+            </button>
+            <button class="danger" onclick="deleteSchedule('${s.id}')" title="Delete">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>`;
+        list.appendChild(el);
+      });
+    }
+  } catch {}
+
+  const btn = document.getElementById('btn-add-monitor-page');
+  if (btn) btn.onclick = showAddMonitorModal;
+}
+
+async function toggleSchedule(id, currentStatus) {
+  const action = currentStatus === 'active' ? 'pause' : 'resume';
+  await apiFetch(`/api/schedule/${id}`, { method: 'PUT', body: JSON.stringify({ action }) });
+  loadPageMonitoring();
+}
+
+async function deleteSchedule(id) {
+  if (!confirm('Delete this monitoring schedule?')) return;
+  await apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
+  loadPageMonitoring();
+  loadSidebarStats();
+}
+
+/* ============================================
+   PAGE: ALERTS
+   ============================================ */
+async function loadPageAlerts() {
+  try {
+    const res = await apiFetch('/api/notifications?limit=50');
+    if (!res.ok) return;
+    const { notifications } = await res.json();
+    const list = document.getElementById('alerts-list');
+    const empty = document.getElementById('alerts-empty');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (notifications.length === 0) {
+      if (empty) empty.style.display = 'block';
+    } else {
+      if (empty) empty.style.display = 'none';
+      notifications.forEach(n => {
+        const iconClass = n.type === 'change_detected' ? 'change' : n.type === 'scrape_failed' ? 'error' : 'info';
+        const icon = n.type === 'change_detected' ? 'fa-arrow-trend-up' : n.type === 'scrape_failed' ? 'fa-triangle-exclamation' : 'fa-bell';
+        const el = document.createElement('div');
+        el.className = `alert-item ${n.is_read ? '' : 'unread'}`;
+        el.innerHTML = `
+          <div class="alert-icon-wrap ${iconClass}"><i class="fas ${icon}"></i></div>
+          <div class="alert-body">
+            <div class="alert-title">${escapeHtml(n.title)}</div>
+            <div class="alert-message">${escapeHtml(n.message)}</div>
+            <div class="alert-time">${getTimeAgo(n.created_at)}</div>
+          </div>`;
+        list.appendChild(el);
+      });
+    }
+  } catch {}
+
+  const markBtn = document.getElementById('btn-mark-all-read');
+  if (markBtn) markBtn.onclick = async () => {
+    await apiFetch('/api/notifications/read-all', { method: 'PUT' });
+    loadPageAlerts();
+    loadNotificationBadge();
+  };
+}
+
+/* ============================================
+   PAGE: CHANGE HISTORY
+   ============================================ */
+async function loadPageChangeHistory() {
+  try {
+    const res = await apiFetch('/api/schedule');
+    if (!res.ok) return;
+    const { schedules } = await res.json();
+    const list = document.getElementById('change-history-list');
+    const empty = document.getElementById('history-empty');
+    if (!list) return;
+    list.innerHTML = '';
+
+    let allHistory = [];
+    for (const s of schedules) {
+      try {
+        const hRes = await apiFetch(`/api/schedule/${s.id}/history`);
+        if (hRes.ok) {
+          const { history } = await hRes.json();
+          history.forEach(h => allHistory.push({ ...h, scheduleName: s.job_name, url: s.url }));
+        }
+      } catch {}
+    }
+
+    // Sort by date
+    allHistory.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (allHistory.length === 0) {
+      if (empty) empty.style.display = 'block';
+    } else {
+      if (empty) empty.style.display = 'none';
+      allHistory.slice(0, 30).forEach(h => {
+        const el = document.createElement('div');
+        el.className = 'change-item';
+        el.innerHTML = `
+          <div class="change-item-header">
+            <div class="change-item-source">
+              <i class="fas fa-globe" style="color:var(--primary-500);"></i>
+              ${escapeHtml(h.scheduleName)}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="change-badge ${h.has_changes ? 'has-changes' : 'no-changes'}">${h.has_changes ? 'Changes' : 'No Changes'}</span>
+              <span class="change-item-time">${getTimeAgo(h.created_at)}</span>
+            </div>
+          </div>
+          <div class="change-item-summary">${escapeHtml(h.change_summary || 'No summary available.')}</div>`;
+        list.appendChild(el);
+      });
+    }
+  } catch {}
+}
+
+/* ============================================
+   PAGE: CHAT
+   ============================================ */
+function initChatWidgets() {
+  // Sidebar widget chat
+  const sendBtn = document.getElementById('btn-chat-send');
+  const chatInput = document.getElementById('chat-input');
+  if (sendBtn && chatInput) {
+    sendBtn.addEventListener('click', () => sendChatMessage(chatInput, 'chat-messages'));
+    chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(chatInput, 'chat-messages'); });
+  }
+
+  // Fullpage chat
+  const sendBtnFull = document.getElementById('btn-chat-send-full');
+  const chatInputFull = document.getElementById('chat-input-full');
+  if (sendBtnFull && chatInputFull) {
+    sendBtnFull.addEventListener('click', () => sendChatMessage(chatInputFull, 'chat-messages-full'));
+    chatInputFull.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(chatInputFull, 'chat-messages-full'); });
+  }
+
+  // New chat button
+  const newChatBtn = document.getElementById('btn-new-chat');
+  if (newChatBtn) newChatBtn.addEventListener('click', async () => {
+    await apiFetch('/api/chat/history', { method: 'DELETE' });
+    const container = document.getElementById('chat-messages');
+    if (container) container.innerHTML = '';
+  });
+
+  const clearChatBtn = document.getElementById('btn-clear-chat-page');
+  if (clearChatBtn) clearChatBtn.addEventListener('click', async () => {
+    await apiFetch('/api/chat/history', { method: 'DELETE' });
+    const container = document.getElementById('chat-messages-full');
+    if (container) container.innerHTML = '';
+  });
+}
+
+async function loadPageChat() {
+  // Load job selector
+  const selector = document.getElementById('chat-job-selector');
+  if (selector) {
+    try {
+      const res = await apiFetch('/api/scrape');
+      if (res.ok) {
+        const { jobs } = await res.json();
+        selector.innerHTML = '<option value="">All Data Sources</option>';
+        jobs.filter(j => j.status === 'success').forEach(j => {
+          selector.innerHTML += `<option value="${j.id}">${escapeHtml(j.name)}</option>`;
+        });
+      }
+    } catch {}
+  }
+
+  // Load chat history
+  try {
+    const res = await apiFetch('/api/chat/history');
+    if (res.ok) {
+      const { messages } = await res.json();
+      const container = document.getElementById('chat-messages-full');
+      if (container) {
+        container.innerHTML = '';
+        if (messages.length === 0) {
+          container.innerHTML = `
+            <div style="text-align:center;padding:40px;color:#94a3b8;">
+              <i class="fas fa-comments" style="font-size:2.5rem;margin-bottom:12px;display:block;color:#cbd5e1;"></i>
+              <p style="font-size:0.9rem;">Mulai percakapan dengan AI tentang data Anda.</p>
+              <p style="font-size:0.78rem;margin-top:8px;">Contoh: "Buat rangkuman data", "Urutkan berdasarkan harga", "Bandingkan produk"</p>
+            </div>`;
+        } else {
+          messages.forEach(m => appendChatBubble(container, m.role, m.content));
+          container.scrollTop = container.scrollHeight;
+        }
+      }
+    }
+  } catch {}
+}
+
+async function sendChatMessage(inputEl, containerId) {
+  const msg = inputEl.value.trim();
+  if (!msg) return;
+  inputEl.value = '';
+
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  // Remove empty placeholder if exists
+  const placeholder = container.querySelector('[style*="text-align:center"]');
+  if (placeholder) placeholder.remove();
+
+  appendChatBubble(container, 'user', msg);
+  container.scrollTop = container.scrollHeight;
+
+  // Typing indicator
+  const typing = document.createElement('div');
+  typing.className = 'chat-message ai';
+  typing.innerHTML = '<div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="chat-bubble"><i class="fas fa-spinner fa-spin"></i> AI sedang mengetik...</div>';
+  container.appendChild(typing);
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const jobSelector = document.getElementById('chat-job-selector');
+    const jobId = jobSelector?.value || null;
+    const res = await apiFetch('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: msg, jobId }),
+    });
+    const data = await res.json();
+    typing.remove();
+
+    if (res.ok) {
+      appendChatBubble(container, 'assistant', data.response);
+    } else {
+      appendChatBubble(container, 'assistant', `⚠️ ${data.error?.message || 'Error'}`);
+    }
+  } catch (err) {
+    typing.remove();
+    appendChatBubble(container, 'assistant', `⚠️ ${err.message}`);
+  }
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendChatBubble(container, role, content) {
+  const div = document.createElement('div');
+  div.className = `chat-message ${role === 'user' ? 'user' : 'ai'}`;
+
+  const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+  if (role === 'user') {
+    div.innerHTML = `<div class="chat-bubble">${escapeHtml(content)}<div class="chat-time">${time} <span class="chat-check">✓✓</span></div></div>`;
+  } else {
+    // Simple markdown: bold, lists
+    let html = escapeHtml(content)
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n/g, '<br>');
+    div.innerHTML = `<div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="chat-bubble">${html}<div class="chat-time">${time}</div></div>`;
+  }
+  container.appendChild(div);
+}
+
+/* ============================================
+   PAGE: EXPORTS
+   ============================================ */
+async function loadPageExports() {
+  try {
+    const res = await apiFetch('/api/scrape');
+    if (!res.ok) return;
+    const { jobs } = await res.json();
+    const list = document.getElementById('exports-list');
+    const empty = document.getElementById('exports-empty');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const successJobs = jobs.filter(j => j.status === 'success');
+    if (successJobs.length === 0) {
+      if (empty) empty.style.display = 'block';
+    } else {
+      if (empty) empty.style.display = 'none';
+      successJobs.forEach(j => {
+        const el = document.createElement('div');
+        el.className = 'export-item';
+        el.innerHTML = `
+          <div class="export-icon"><i class="fas fa-database"></i></div>
+          <div class="export-info">
+            <div class="export-name">${escapeHtml(j.name)}</div>
+            <div class="export-meta">${j.items_count || 0} items · ${getTimeAgo(j.created_at)}</div>
+          </div>
+          <div class="export-actions">
+            <button class="btn-json" onclick="window.open('${API_BASE}/api/export/${j.id}?format=json&token=${getToken()}','_blank')">
+              <i class="fas fa-code"></i> JSON
+            </button>
+            <button class="btn-csv" onclick="window.open('${API_BASE}/api/export/${j.id}?format=csv&token=${getToken()}','_blank')">
+              <i class="fas fa-table"></i> CSV
+            </button>
+          </div>`;
+        list.appendChild(el);
+      });
+    }
+  } catch {}
+}
+
+/* ============================================
+   NEW SCRAPE MODAL
+   ============================================ */
+function showNewScrapeModal() {
+  const existing = document.getElementById('scrape-modal');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'scrape-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:2000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s;';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:32px;width:500px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.15);animation:fadeInUp 0.3s;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3 style="font-size:1.15rem;font-weight:700;"><i class="fas fa-spider" style="color:#6366f1;"></i> New Scrape</h3>
+        <button id="close-scrape-modal" style="background:none;border:none;font-size:1.2rem;color:#94a3b8;cursor:pointer;">&times;</button>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">URL</label>
+        <input type="url" id="scrape-url" placeholder="https://example.com" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">Name (optional)</label>
+        <input type="text" id="scrape-name" placeholder="E.g., Product Data" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div id="scrape-status" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:8px;font-size:0.82rem;font-weight:500;"></div>
+      <button id="btn-start-scrape" style="width:100%;padding:13px;background:linear-gradient(135deg,#6366f1,#4338ca);color:white;border:none;border-radius:8px;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
+        <i class="fas fa-play"></i> Start Scraping
+      </button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  document.getElementById('close-scrape-modal').onclick = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  document.getElementById('btn-start-scrape').addEventListener('click', async () => {
+    const url = document.getElementById('scrape-url').value.trim();
+    const name = document.getElementById('scrape-name').value.trim();
+    const status = document.getElementById('scrape-status');
+    const btn = document.getElementById('btn-start-scrape');
+
+    if (!url) { status.style.display='block'; status.style.background='#fee2e2'; status.style.color='#ef4444'; status.textContent='⚠️ URL wajib diisi.'; return; }
+
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scraping...';
+    status.style.display = 'block'; status.style.background = '#dbeafe'; status.style.color = '#3b82f6';
+    status.textContent = '🔄 Memulai scraping...';
+
+    try {
+      const res = await apiFetch('/api/scrape', { method: 'POST', body: JSON.stringify({ url, name: name || undefined }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'Failed');
+
+      // Poll status
+      const jobId = data.job.id;
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries++;
+        try {
+          const jRes = await apiFetch(`/api/scrape/${jobId}`);
+          const jData = await jRes.json();
+          if (jData.job.status === 'success') {
+            clearInterval(poll);
+            status.style.background = '#d1fae5'; status.style.color = '#10b981';
+            status.textContent = `✅ Berhasil! ${jData.job.items_count || 0} items extracted.`;
+            btn.innerHTML = '<i class="fas fa-check"></i> Done!';
+            setTimeout(() => { overlay.remove(); loadPageDashboard(); loadPageMyScrapes(); loadSidebarStats(); }, 1500);
+          } else if (jData.job.status === 'failed') {
+            clearInterval(poll);
+            status.style.background = '#fee2e2'; status.style.color = '#ef4444';
+            status.textContent = `❌ ${jData.job.error_message || 'Scraping gagal.'}`;
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> Retry';
+          } else {
+            status.textContent = `🔄 Scraping... (${tries * 2}s)`;
+          }
+        } catch {}
+        if (tries > 30) { clearInterval(poll); btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> Retry'; }
+      }, 2000);
+    } catch (err) {
+      status.style.background = '#fee2e2'; status.style.color = '#ef4444';
+      status.textContent = `❌ ${err.message}`;
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> Start Scraping';
+    }
+  });
+}
+
+/* ============================================
+   ADD MONITOR MODAL
    ============================================ */
 async function showAddMonitorModal() {
   const existing = document.getElementById('monitor-modal');
   if (existing) existing.remove();
 
-  // Fetch intervals
   let intervals = [];
   try {
     const res = await apiFetch('/api/schedule/intervals');
@@ -1080,24 +975,20 @@ async function showAddMonitorModal() {
 
   const overlay = document.createElement('div');
   overlay.id = 'monitor-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:2000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease-out;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:2000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s;';
   overlay.innerHTML = `
-    <div style="background:white;border-radius:16px;padding:32px;width:480px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.15);animation:fadeInUp 0.3s ease-out;">
+    <div style="background:white;border-radius:16px;padding:32px;width:480px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.15);animation:fadeInUp 0.3s;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <h3 style="font-size:1.15rem;font-weight:700;"><i class="fas fa-chart-line" style="color:#6366f1;"></i> Add Monitor</h3>
         <button id="close-monitor-modal" style="background:none;border:none;font-size:1.2rem;color:#94a3b8;cursor:pointer;">&times;</button>
       </div>
       <div style="margin-bottom:16px;">
         <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">URL to monitor</label>
-        <input type="url" id="monitor-url" placeholder="https://example.com/products"
-               style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;transition:border 0.2s;"
-               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+        <input type="url" id="monitor-url" placeholder="https://example.com/products" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
       </div>
       <div style="margin-bottom:16px;">
         <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">Name (optional)</label>
-        <input type="text" id="monitor-name" placeholder="E.g., Product Price Watch"
-               style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;transition:border 0.2s;"
-               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+        <input type="text" id="monitor-name" placeholder="E.g., Product Price Watch" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;" onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
       </div>
       <div style="margin-bottom:20px;">
         <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">Check interval</label>
@@ -1106,97 +997,41 @@ async function showAddMonitorModal() {
         </select>
       </div>
       <div id="monitor-status" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:8px;font-size:0.82rem;font-weight:500;"></div>
-      <button id="btn-create-monitor"
-              style="width:100%;padding:13px;background:linear-gradient(135deg,#6366f1,#4338ca);color:white;border:none;border-radius:8px;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.2s;"
-              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(99,102,241,0.35)'"
-              onmouseout="this.style.transform='none';this.style.boxShadow='none'">
+      <button id="btn-create-monitor" style="width:100%;padding:13px;background:linear-gradient(135deg,#6366f1,#4338ca);color:white;border:none;border-radius:8px;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.2s;">
         <i class="fas fa-play"></i> Start Monitoring
       </button>
-    </div>
-  `;
+    </div>`;
 
   document.body.appendChild(overlay);
-  document.getElementById('close-monitor-modal').addEventListener('click', () => overlay.remove());
+  document.getElementById('close-monitor-modal').onclick = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
   document.getElementById('btn-create-monitor').addEventListener('click', async () => {
     const url = document.getElementById('monitor-url').value.trim();
     const name = document.getElementById('monitor-name').value.trim();
     const interval = document.getElementById('monitor-interval').value;
-    const statusEl = document.getElementById('monitor-status');
+    const status = document.getElementById('monitor-status');
     const btn = document.getElementById('btn-create-monitor');
 
-    if (!url) {
-      statusEl.style.display = 'block'; statusEl.style.background = '#fee2e2'; statusEl.style.color = '#ef4444';
-      statusEl.textContent = '⚠️ URL wajib diisi.'; return;
-    }
+    if (!url) { status.style.display='block'; status.style.background='#fee2e2'; status.style.color='#ef4444'; status.textContent='⚠️ URL wajib diisi.'; return; }
 
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
-    statusEl.style.display = 'block'; statusEl.style.background = '#dbeafe'; statusEl.style.color = '#3b82f6';
-    statusEl.textContent = '🔄 Membuat monitoring...';
+    status.style.display = 'block'; status.style.background = '#dbeafe'; status.style.color = '#3b82f6';
+    status.textContent = '🔄 Membuat monitoring...';
 
     try {
-      const res = await apiFetch('/api/schedule', {
-        method: 'POST',
-        body: JSON.stringify({ url, name: name || undefined, interval }),
-      });
+      const res = await apiFetch('/api/schedule', { method: 'POST', body: JSON.stringify({ url, name: name || undefined, interval }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || 'Failed');
 
-      statusEl.style.background = '#d1fae5'; statusEl.style.color = '#10b981';
-      statusEl.textContent = `✅ Monitoring aktif: ${data.schedule.job_name} (${data.schedule.interval_label})`;
+      status.style.background = '#d1fae5'; status.style.color = '#10b981';
+      status.textContent = `✅ Monitoring aktif: ${data.schedule.job_name}`;
       btn.innerHTML = '<i class="fas fa-check"></i> Created!';
-      setTimeout(() => { overlay.remove(); loadMonitoringStatus(); loadSidebarStats(); }, 1500);
+      setTimeout(() => { overlay.remove(); loadPageMonitoring(); loadMonitoringWidget(); loadSidebarStats(); }, 1500);
     } catch (err) {
-      statusEl.style.background = '#fee2e2'; statusEl.style.color = '#ef4444';
-      statusEl.textContent = `❌ ${err.message}`;
+      status.style.background = '#fee2e2'; status.style.color = '#ef4444';
+      status.textContent = `❌ ${err.message}`;
       btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> Start Monitoring';
     }
-  });
-}
-
-/* ============================================
-   PHASE 2: SIDEBAR USAGE STATS (Real API)
-   ============================================ */
-async function loadSidebarStats() {
-  try {
-    // Scrape count
-    const scrapeRes = await apiFetch('/api/scrape');
-    if (scrapeRes.ok) {
-      const { jobs } = await scrapeRes.json();
-      const scrapeCount = jobs.length;
-      const planStatHeaders = document.querySelectorAll('.plan-stat-header');
-      const planStatFills = document.querySelectorAll('.plan-stat-fill');
-      if (planStatHeaders[0]) {
-        planStatHeaders[0].innerHTML = `<span>Scrapes / month</span><span>${scrapeCount} / 50</span>`;
-      }
-      if (planStatFills[0]) {
-        planStatFills[0].style.width = `${Math.min(scrapeCount / 50 * 100, 100)}%`;
-      }
-    }
-
-    // Monitor count
-    const scheduleRes = await apiFetch('/api/schedule');
-    if (scheduleRes.ok) {
-      const { schedules } = await scheduleRes.json();
-      const monitorCount = schedules.length;
-      const planStatHeaders = document.querySelectorAll('.plan-stat-header');
-      const planStatFills = document.querySelectorAll('.plan-stat-fill');
-      if (planStatHeaders[1]) {
-        planStatHeaders[1].innerHTML = `<span>Monitored URLs</span><span>${monitorCount} / 10</span>`;
-      }
-      if (planStatFills[1]) {
-        planStatFills[1].style.width = `${Math.min(monitorCount / 10 * 100, 100)}%`;
-      }
-    }
-  } catch {}
-}
-
-// Wire sidebar monitoring nav item
-const navMonitoring = document.getElementById('nav-monitoring');
-if (navMonitoring) {
-  navMonitoring.addEventListener('click', (e) => {
-    e.preventDefault();
-    showAddMonitorModal();
   });
 }
