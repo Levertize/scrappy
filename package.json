@@ -1,0 +1,28 @@
+{
+  "name": "ai-web-scraper",
+  "version": "1.0.0",
+  "description": "AI-powered web scraping platform with data extraction, monitoring, and conversational analysis",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": ["scraper", "ai", "web", "data-extraction", "claude"],
+  "author": "Tim Produk",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "better-sqlite3": "^11.6.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^10.0.0",
+    "cheerio": "^1.0.0",
+    "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}

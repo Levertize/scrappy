@@ -1,2 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# Database
+*.db
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# PRD & Design (local only)
 /PRD-AI-Web-Scraper.md
 /UI.png
+
+# Logs
+*.log
