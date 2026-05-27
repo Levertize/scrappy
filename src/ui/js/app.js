@@ -3,12 +3,153 @@
  * Handles interactivity, animations, and mock data flows
  */
 
+const API_BASE = window.location.origin;
+
+/**
+ * Get stored auth token
+ */
+function getToken() {
+  return localStorage.getItem('token');
+}
+
+/**
+ * Get stored user object
+ */
+function getUser() {
+  try {
+    return JSON.parse(localStorage.getItem('user'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Auth-protected fetch wrapper
+ */
+async function apiFetch(url, options = {}) {
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+  const res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login.html';
+    throw new Error('Session expired');
+  }
+  return res;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Auth check — redirect to login if no token
+  if (!getToken()) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  // Display user info
+  initUserProfile();
+
   initNavigation();
   initChat();
   initAnimations();
   initTooltips();
+  initLogout();
 });
+
+/**
+ * Display user name & initials from stored data
+ */
+function initUserProfile() {
+  const user = getUser();
+  if (!user) return;
+
+  const userNameEl = document.querySelector('.user-name');
+  const userPlanEl = document.querySelector('.user-plan');
+  const userAvatarEl = document.querySelector('.user-avatar');
+
+  if (userNameEl) userNameEl.textContent = user.username || 'User';
+  if (userPlanEl) userPlanEl.textContent = (user.plan || 'free').charAt(0).toUpperCase() + (user.plan || 'free').slice(1) + ' Plan';
+
+  // Generate initials
+  if (userAvatarEl && user.username) {
+    const parts = user.username.split(/[\s._-]+/);
+    const initials = parts.length >= 2
+      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      : user.username.slice(0, 2).toUpperCase();
+    userAvatarEl.textContent = initials;
+  }
+}
+
+/**
+ * Add logout functionality to user profile dropdown
+ */
+function initLogout() {
+  const userProfile = document.getElementById('user-profile');
+  if (userProfile) {
+    userProfile.addEventListener('click', () => {
+      showUserMenu(userProfile);
+    });
+  }
+}
+
+function showUserMenu(anchor) {
+  const existing = document.querySelector('.user-menu');
+  if (existing) { existing.remove(); return; }
+
+  const menu = document.createElement('div');
+  menu.className = 'user-menu';
+  menu.style.cssText = `
+    position: absolute;
+    top: ${anchor.getBoundingClientRect().bottom + 6}px;
+    right: 24px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    padding: 4px;
+    z-index: 1000;
+    min-width: 160px;
+    animation: fadeInUp 0.2s ease-out;
+  `;
+
+  const items = [
+    { icon: 'fa-user', label: 'Profile', action: () => {} },
+    { icon: 'fa-gear', label: 'Settings', action: () => {} },
+    { icon: 'fa-right-from-bracket', label: 'Logout', action: () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login.html';
+    }, color: '#ef4444' },
+  ];
+
+  items.forEach(item => {
+    const el = document.createElement('div');
+    el.style.cssText = `
+      display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+      font-size: 0.85rem; color: ${item.color || '#334155'}; cursor: pointer;
+      border-radius: 7px; transition: background 0.15s ease;
+    `;
+    el.innerHTML = `<i class="fas ${item.icon}" style="width:16px;text-align:center;"></i> ${item.label}`;
+    el.addEventListener('mouseenter', () => { el.style.background = '#f1f5f9'; });
+    el.addEventListener('mouseleave', () => { el.style.background = 'transparent'; });
+    el.addEventListener('click', () => { menu.remove(); item.action(); });
+    menu.appendChild(el);
+  });
+
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!menu.contains(e.target) && !anchor.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', close);
+      }
+    });
+  }, 10);
+}
 
 /* ============================================
    NAVIGATION
