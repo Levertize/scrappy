@@ -28,7 +28,7 @@ app.use(express.static(path.join(__dirname, 'ui')));
 // API Routes (will be added in Tahap 2-5)
 // ============================================
 app.use('/api/auth', require('./api/routes/auth'));
-// app.use('/api/scrape', require('./api/routes/scrape'));
+app.use('/api/scrape', require('./api/routes/scrape'));
 // app.use('/api/chat', require('./api/routes/chat'));
 // app.use('/api/export', require('./api/routes/export'));
 
