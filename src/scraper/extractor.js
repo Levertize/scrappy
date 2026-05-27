@@ -1,9 +1,9 @@
 /**
  * AI Web Scraper — AI-Powered Data Extractor
- * Uses Claude to extract structured data from scraped content
+ * Uses Gemini to extract structured data from scraped content
  */
 
-const { sendMessage } = require('../ai/claude');
+const { sendMessage } = require('../ai/gemini');
 
 /**
  * System prompt for data extraction
@@ -22,7 +22,7 @@ Rules:
 9. Ratings should be numeric when possible.`;
 
 /**
- * Extract structured data from scraped content using Claude AI
+ * Extract structured data from scraped content using Gemini AI
  * @param {string} textContent - Cleaned text from the page
  * @param {Object} metadata - Page metadata (title, description, etc.)
  * @param {string} customInstruction - Optional user instruction for custom extraction

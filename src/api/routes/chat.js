@@ -47,7 +47,7 @@ router.post('/', async (req, res) => {
     // Friendly error for API key issues
     if (err.message.includes('API key')) {
       return res.status(503).json({
-        error: { message: 'AI service not configured. Please set your Claude API key.' },
+        error: { message: 'AI service not configured. Please set your Gemini API key.' },
       });
     }
 

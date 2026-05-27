@@ -1,9 +1,9 @@
 /**
  * AI Web Scraper — Chat Context Management
- * RAG-based approach: inject scraped data as context for Claude
+ * RAG-based approach: inject scraped data as context for Gemini
  */
 
-const { sendConversation } = require('./claude');
+const { sendConversation } = require('./gemini');
 const { db } = require('../storage/db');
 
 /**
@@ -45,7 +45,7 @@ async function processChat(userId, message, jobId = null) {
     { role: 'user', content: message },
   ];
 
-  // Send to Claude
+  // Send to Gemini
   const { content, usage } = await sendConversation(
     systemPrompt,
     messages,
