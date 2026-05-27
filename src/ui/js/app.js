@@ -58,6 +58,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initAnimations();
   initTooltips();
   initLogout();
+
+  // Phase 2: Load real monitoring + notifications
+  loadMonitoringStatus();
+  loadChangeHistory();
+  loadNotificationBadge();
+  loadSidebarStats();
+  // Poll notifications every 60s
+  setInterval(loadNotificationBadge, 60000);
 });
 
 /**
@@ -818,4 +826,377 @@ function showExportMenu(anchor, jobId) {
 // Load real data on dashboard load
 if (getToken()) {
   setTimeout(loadDashboardData, 500);
+}
+
+/* ============================================
+   PHASE 2: MONITORING STATUS (Real API)
+   ============================================ */
+async function loadMonitoringStatus() {
+  try {
+    const res = await apiFetch('/api/schedule');
+    if (!res.ok) return;
+    const { schedules } = await res.json();
+
+    const container = document.getElementById('monitoring-status-card');
+    if (!container) return;
+
+    // Keep card header, replace content
+    const items = container.querySelectorAll('.monitor-item');
+    items.forEach(item => item.remove());
+
+    if (schedules.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:16px;text-align:center;color:#94a3b8;font-size:0.85rem;';
+      empty.innerHTML = '<i class="fas fa-radar" style="font-size:1.5rem;margin-bottom:8px;display:block;"></i>Belum ada monitoring. Klik tombol di bawah untuk mulai.';
+      container.appendChild(empty);
+    } else {
+      schedules.forEach(s => {
+        const lastChange = s.latestChange;
+        const badge = lastChange?.has_changes
+          ? '<span class="monitor-badge changes-detected">Changes detected</span>'
+          : '<span class="monitor-badge no-changes">No changes</span>';
+        const timeAgo = s.last_run_at ? getTimeAgo(s.last_run_at) : 'Not run yet';
+
+        const el = document.createElement('div');
+        el.className = 'monitor-item';
+        el.innerHTML = `
+          <div class="monitor-icon"><i class="fas fa-globe"></i></div>
+          <div class="monitor-info">
+            <div class="monitor-url">${escapeHtmlGlobal(s.job_name)}</div>
+            <div class="monitor-interval">${s.interval_label} · <span style="color:${s.status==='active'?'#10b981':'#f59e0b'}">${s.status}</span></div>
+          </div>
+          <div class="monitor-status">
+            <div class="monitor-time">${timeAgo}</div>
+            ${badge}
+          </div>
+        `;
+        container.appendChild(el);
+      });
+    }
+
+    // Add "+ Add Monitor" button
+    if (!document.getElementById('btn-add-monitor')) {
+      const btn = document.createElement('button');
+      btn.id = 'btn-add-monitor';
+      btn.style.cssText = 'width:100%;padding:10px;margin-top:8px;background:transparent;border:1.5px dashed #cbd5e1;border-radius:8px;color:#6366f1;font-size:0.82rem;font-weight:600;cursor:pointer;transition:all 0.2s;font-family:inherit;';
+      btn.innerHTML = '<i class="fas fa-plus"></i> Add Monitor';
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = '#6366f1'; btn.style.background = '#f8faff'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = '#cbd5e1'; btn.style.background = 'transparent'; });
+      btn.addEventListener('click', showAddMonitorModal);
+      container.appendChild(btn);
+    }
+  } catch (err) {
+    console.warn('Failed to load monitoring:', err);
+  }
+}
+
+/* ============================================
+   PHASE 2: CHANGE HISTORY (Real API)
+   ============================================ */
+async function loadChangeHistory() {
+  try {
+    const res = await apiFetch('/api/schedule');
+    if (!res.ok) return;
+    const { schedules } = await res.json();
+
+    const card = document.getElementById('change-summary-card');
+    if (!card) return;
+
+    // Remove existing items
+    const items = card.querySelectorAll('.change-summary-item');
+    items.forEach(item => item.remove());
+
+    // Collect all changes with schedule info
+    let allChanges = [];
+    for (const s of schedules) {
+      if (s.latestChange && s.latestChange.has_changes) {
+        allChanges.push({ ...s.latestChange, scheduleName: s.job_name, url: s.url });
+      }
+    }
+
+    if (allChanges.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'change-summary-item';
+      empty.style.cssText = 'text-align:center;color:#94a3b8;font-size:0.85rem;padding:12px;';
+      empty.textContent = 'Belum ada perubahan terdeteksi.';
+      card.appendChild(empty);
+      return;
+    }
+
+    allChanges.slice(0, 3).forEach(ch => {
+      const el = document.createElement('div');
+      el.className = 'change-summary-item';
+      el.innerHTML = `
+        <div class="change-summary-header">
+          <div class="change-source">
+            <div class="change-source-icon"><i class="fas fa-globe"></i></div>
+            ${escapeHtmlGlobal(ch.scheduleName)}
+          </div>
+          <span class="change-time">${getTimeAgo(ch.created_at)}</span>
+        </div>
+        <div class="change-label">AI Summary</div>
+        <div class="change-text">${escapeHtmlGlobal(ch.change_summary || '')}</div>
+      `;
+      card.appendChild(el);
+    });
+  } catch (err) {
+    console.warn('Failed to load change history:', err);
+  }
+}
+
+/* ============================================
+   PHASE 2: NOTIFICATION BADGE (Real API)
+   ============================================ */
+async function loadNotificationBadge() {
+  try {
+    const res = await apiFetch('/api/notifications/unread-count');
+    if (!res.ok) return;
+    const { count } = await res.json();
+
+    const badge = document.querySelector('.notification-badge');
+    const notifBtnEl = document.getElementById('btn-notifications');
+
+    if (count > 0) {
+      if (badge) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.transform = 'scale(1)';
+      } else if (notifBtnEl) {
+        const newBadge = document.createElement('span');
+        newBadge.className = 'notification-badge';
+        newBadge.textContent = count > 99 ? '99+' : count;
+        notifBtnEl.appendChild(newBadge);
+      }
+    } else if (badge) {
+      badge.style.transform = 'scale(0)';
+    }
+  } catch {}
+}
+
+/* ============================================
+   PHASE 2: NOTIFICATION PANEL
+   ============================================ */
+const notifBtnPhase2 = document.getElementById('btn-notifications');
+if (notifBtnPhase2) {
+  notifBtnPhase2.addEventListener('click', showNotificationPanel);
+}
+
+async function showNotificationPanel() {
+  const existing = document.querySelector('.notif-panel');
+  if (existing) { existing.remove(); return; }
+
+  const btn = document.getElementById('btn-notifications');
+  const rect = btn.getBoundingClientRect();
+
+  const panel = document.createElement('div');
+  panel.className = 'notif-panel';
+  panel.style.cssText = `
+    position:fixed; top:${rect.bottom+8}px; right:24px; width:360px; max-height:450px;
+    background:white; border:1px solid #e2e8f0; border-radius:12px;
+    box-shadow:0 15px 40px rgba(0,0,0,0.12); z-index:1000; overflow:hidden;
+    animation: fadeInUp 0.2s ease-out;
+  `;
+
+  panel.innerHTML = '<div style="padding:16px;text-align:center;color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+  document.body.appendChild(panel);
+
+  try {
+    const res = await apiFetch('/api/notifications?limit=10');
+    const { notifications, unreadCount } = await res.json();
+
+    // Mark all as read
+    if (unreadCount > 0) {
+      await apiFetch('/api/notifications/read-all', { method: 'PUT' });
+      loadNotificationBadge();
+    }
+
+    let html = `<div style="padding:14px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-weight:700;font-size:0.95rem;">Notifications</span>
+      <span style="font-size:0.75rem;color:#94a3b8;">${notifications.length} terbaru</span>
+    </div>`;
+
+    if (notifications.length === 0) {
+      html += '<div style="padding:32px;text-align:center;color:#94a3b8;"><i class="fas fa-bell-slash" style="font-size:1.5rem;margin-bottom:8px;display:block;"></i>Belum ada notifikasi</div>';
+    } else {
+      html += '<div style="max-height:380px;overflow-y:auto;">';
+      notifications.forEach(n => {
+        const icon = n.type === 'change_detected' ? 'fa-arrow-trend-up' : n.type === 'scrape_failed' ? 'fa-triangle-exclamation' : 'fa-bell';
+        const iconColor = n.type === 'change_detected' ? '#10b981' : n.type === 'scrape_failed' ? '#ef4444' : '#6366f1';
+        html += `
+          <div style="padding:12px 16px;border-bottom:1px solid #f8fafc;${n.is_read?'':'background:#f8faff;'}">
+            <div style="display:flex;gap:10px;">
+              <div style="width:32px;height:32px;border-radius:8px;background:${iconColor}15;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="fas ${icon}" style="color:${iconColor};font-size:0.8rem;"></i>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.82rem;font-weight:600;color:#1e293b;">${escapeHtmlGlobal(n.title)}</div>
+                <div style="font-size:0.78rem;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlGlobal(n.message).substring(0,80)}</div>
+                <div style="font-size:0.7rem;color:#94a3b8;margin-top:4px;">${getTimeAgo(n.created_at)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    panel.innerHTML = html;
+  } catch {
+    panel.innerHTML = '<div style="padding:16px;text-align:center;color:#ef4444;">Gagal memuat notifikasi</div>';
+  }
+
+  setTimeout(() => {
+    document.addEventListener('click', function close(e) {
+      if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        panel.remove();
+        document.removeEventListener('click', close);
+      }
+    });
+  }, 10);
+}
+
+/* ============================================
+   PHASE 2: ADD MONITOR MODAL
+   ============================================ */
+async function showAddMonitorModal() {
+  const existing = document.getElementById('monitor-modal');
+  if (existing) existing.remove();
+
+  // Fetch intervals
+  let intervals = [];
+  try {
+    const res = await apiFetch('/api/schedule/intervals');
+    const data = await res.json();
+    intervals = data.intervals;
+  } catch {
+    intervals = [
+      { key: '1h', label: 'Setiap 1 jam' },
+      { key: '6h', label: 'Setiap 6 jam' },
+      { key: '12h', label: 'Setiap 12 jam' },
+      { key: '24h', label: 'Setiap 24 jam' },
+    ];
+  }
+
+  const optionsHtml = intervals.map(i => `<option value="${i.key}">${i.label}</option>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'monitor-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:2000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.2s ease-out;';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:16px;padding:32px;width:480px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,0.15);animation:fadeInUp 0.3s ease-out;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h3 style="font-size:1.15rem;font-weight:700;"><i class="fas fa-chart-line" style="color:#6366f1;"></i> Add Monitor</h3>
+        <button id="close-monitor-modal" style="background:none;border:none;font-size:1.2rem;color:#94a3b8;cursor:pointer;">&times;</button>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">URL to monitor</label>
+        <input type="url" id="monitor-url" placeholder="https://example.com/products"
+               style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;transition:border 0.2s;"
+               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">Name (optional)</label>
+        <input type="text" id="monitor-name" placeholder="E.g., Product Price Watch"
+               style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;transition:border 0.2s;"
+               onfocus="this.style.borderColor='#818cf8'" onblur="this.style.borderColor='#e2e8f0'">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="display:block;font-size:0.82rem;font-weight:600;color:#334155;margin-bottom:6px;">Check interval</label>
+        <select id="monitor-interval" style="width:100%;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:inherit;font-size:0.9rem;outline:none;background:white;">
+          ${optionsHtml}
+        </select>
+      </div>
+      <div id="monitor-status" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:8px;font-size:0.82rem;font-weight:500;"></div>
+      <button id="btn-create-monitor"
+              style="width:100%;padding:13px;background:linear-gradient(135deg,#6366f1,#4338ca);color:white;border:none;border-radius:8px;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.2s;"
+              onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 20px rgba(99,102,241,0.35)'"
+              onmouseout="this.style.transform='none';this.style.boxShadow='none'">
+        <i class="fas fa-play"></i> Start Monitoring
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  document.getElementById('close-monitor-modal').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  document.getElementById('btn-create-monitor').addEventListener('click', async () => {
+    const url = document.getElementById('monitor-url').value.trim();
+    const name = document.getElementById('monitor-name').value.trim();
+    const interval = document.getElementById('monitor-interval').value;
+    const statusEl = document.getElementById('monitor-status');
+    const btn = document.getElementById('btn-create-monitor');
+
+    if (!url) {
+      statusEl.style.display = 'block'; statusEl.style.background = '#fee2e2'; statusEl.style.color = '#ef4444';
+      statusEl.textContent = '⚠️ URL wajib diisi.'; return;
+    }
+
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    statusEl.style.display = 'block'; statusEl.style.background = '#dbeafe'; statusEl.style.color = '#3b82f6';
+    statusEl.textContent = '🔄 Membuat monitoring...';
+
+    try {
+      const res = await apiFetch('/api/schedule', {
+        method: 'POST',
+        body: JSON.stringify({ url, name: name || undefined, interval }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'Failed');
+
+      statusEl.style.background = '#d1fae5'; statusEl.style.color = '#10b981';
+      statusEl.textContent = `✅ Monitoring aktif: ${data.schedule.job_name} (${data.schedule.interval_label})`;
+      btn.innerHTML = '<i class="fas fa-check"></i> Created!';
+      setTimeout(() => { overlay.remove(); loadMonitoringStatus(); loadSidebarStats(); }, 1500);
+    } catch (err) {
+      statusEl.style.background = '#fee2e2'; statusEl.style.color = '#ef4444';
+      statusEl.textContent = `❌ ${err.message}`;
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-play"></i> Start Monitoring';
+    }
+  });
+}
+
+/* ============================================
+   PHASE 2: SIDEBAR USAGE STATS (Real API)
+   ============================================ */
+async function loadSidebarStats() {
+  try {
+    // Scrape count
+    const scrapeRes = await apiFetch('/api/scrape');
+    if (scrapeRes.ok) {
+      const { jobs } = await scrapeRes.json();
+      const scrapeCount = jobs.length;
+      const planStatHeaders = document.querySelectorAll('.plan-stat-header');
+      const planStatFills = document.querySelectorAll('.plan-stat-fill');
+      if (planStatHeaders[0]) {
+        planStatHeaders[0].innerHTML = `<span>Scrapes / month</span><span>${scrapeCount} / 50</span>`;
+      }
+      if (planStatFills[0]) {
+        planStatFills[0].style.width = `${Math.min(scrapeCount / 50 * 100, 100)}%`;
+      }
+    }
+
+    // Monitor count
+    const scheduleRes = await apiFetch('/api/schedule');
+    if (scheduleRes.ok) {
+      const { schedules } = await scheduleRes.json();
+      const monitorCount = schedules.length;
+      const planStatHeaders = document.querySelectorAll('.plan-stat-header');
+      const planStatFills = document.querySelectorAll('.plan-stat-fill');
+      if (planStatHeaders[1]) {
+        planStatHeaders[1].innerHTML = `<span>Monitored URLs</span><span>${monitorCount} / 10</span>`;
+      }
+      if (planStatFills[1]) {
+        planStatFills[1].style.width = `${Math.min(monitorCount / 10 * 100, 100)}%`;
+      }
+    }
+  } catch {}
+}
+
+// Wire sidebar monitoring nav item
+const navMonitoring = document.getElementById('nav-monitoring');
+if (navMonitoring) {
+  navMonitoring.addEventListener('click', (e) => {
+    e.preventDefault();
+    showAddMonitorModal();
+  });
 }

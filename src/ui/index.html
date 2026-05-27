@@ -23,7 +23,7 @@
     <nav class="sidebar-nav">
       <!-- Dashboard -->
       <div class="nav-group">
-        <a href="#" class="nav-item active" id="nav-dashboard">
+        <a href="#" class="nav-item active" data-page="dashboard" id="nav-dashboard">
           <span class="nav-icon"><i class="fas fa-th-large"></i></span>
           Dashboard
         </a>
@@ -32,32 +32,28 @@
       <!-- Scraping -->
       <div class="nav-group">
         <div class="nav-group-label">Scraping</div>
-        <a href="#" class="nav-item" id="nav-new-scrape">
+        <a href="#" class="nav-item" data-page="new-scrape" id="nav-new-scrape">
           <span class="nav-icon"><i class="fas fa-plus"></i></span>
           New Scrape
         </a>
-        <a href="#" class="nav-item" id="nav-my-scrapes">
+        <a href="#" class="nav-item" data-page="my-scrapes" id="nav-my-scrapes">
           <span class="nav-icon"><i class="fas fa-list"></i></span>
           My Scrapes
-        </a>
-        <a href="#" class="nav-item" id="nav-templates">
-          <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
-          Templates
         </a>
       </div>
 
       <!-- Monitoring -->
       <div class="nav-group">
         <div class="nav-group-label">Monitoring</div>
-        <a href="#" class="nav-item" id="nav-monitoring">
+        <a href="#" class="nav-item" data-page="monitoring" id="nav-monitoring">
           <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
           Monitoring
         </a>
-        <a href="#" class="nav-item" id="nav-alerts">
+        <a href="#" class="nav-item" data-page="alerts" id="nav-alerts">
           <span class="nav-icon"><i class="fas fa-bell"></i></span>
           Alerts
         </a>
-        <a href="#" class="nav-item" id="nav-change-history">
+        <a href="#" class="nav-item" data-page="change-history" id="nav-change-history">
           <span class="nav-icon"><i class="fas fa-history"></i></span>
           Change History
         </a>
@@ -66,26 +62,18 @@
       <!-- AI Chat -->
       <div class="nav-group">
         <div class="nav-group-label">AI Chat</div>
-        <a href="#" class="nav-item" id="nav-chat-data">
+        <a href="#" class="nav-item" data-page="chat" id="nav-chat-data">
           <span class="nav-icon"><i class="fas fa-comments"></i></span>
           Chat with Data
-        </a>
-        <a href="#" class="nav-item" id="nav-chat-history">
-          <span class="nav-icon"><i class="fas fa-clock-rotate-left"></i></span>
-          Chat History
         </a>
       </div>
 
       <!-- Data -->
       <div class="nav-group">
         <div class="nav-group-label">Data</div>
-        <a href="#" class="nav-item" id="nav-exports">
+        <a href="#" class="nav-item" data-page="exports" id="nav-exports">
           <span class="nav-icon"><i class="fas fa-download"></i></span>
           Exports
-        </a>
-        <a href="#" class="nav-item" id="nav-datasets">
-          <span class="nav-icon"><i class="fas fa-database"></i></span>
-          Datasets
         </a>
       </div>
     </nav>
@@ -99,28 +87,19 @@
       <div class="plan-stat">
         <div class="plan-stat-header">
           <span>Scrapes / month</span>
-          <span>18 / 50</span>
+          <span>0 / 50</span>
         </div>
         <div class="plan-stat-bar">
-          <div class="plan-stat-fill" style="width: 36%"></div>
+          <div class="plan-stat-fill" style="width: 0%"></div>
         </div>
       </div>
       <div class="plan-stat">
         <div class="plan-stat-header">
           <span>Monitored URLs</span>
-          <span>2 / 10</span>
+          <span>0 / 10</span>
         </div>
         <div class="plan-stat-bar">
-          <div class="plan-stat-fill" style="width: 20%"></div>
-        </div>
-      </div>
-      <div class="plan-stat">
-        <div class="plan-stat-header">
-          <span>Export limit</span>
-          <span>10 / 20</span>
-        </div>
-        <div class="plan-stat-bar">
-          <div class="plan-stat-fill warning" style="width: 50%"></div>
+          <div class="plan-stat-fill" style="width: 0%"></div>
         </div>
       </div>
     </div>
@@ -132,25 +111,21 @@
 
   <!-- ========== MAIN CONTENT ========== -->
   <main class="main-content" id="main-content">
-    <!-- Header -->
+    <!-- Global Header -->
     <div class="main-header">
       <div class="main-header-left">
-        <h2>Dashboard</h2>
-        <p>Monitor and manage your scraping tasks</p>
+        <h2 id="page-title">Dashboard</h2>
+        <p id="page-subtitle">Monitor and manage your scraping tasks</p>
       </div>
       <div class="main-header-right">
-        <button class="btn btn-primary" id="btn-upgrade">
-          <i class="fas fa-gem"></i>
-          Upgrade Plan
-        </button>
         <button class="notification-btn" id="btn-notifications">
           <i class="fas fa-bell"></i>
-          <span class="notification-badge">3</span>
+          <span class="notification-badge" style="display:none;">0</span>
         </button>
         <div class="user-profile" id="user-profile">
           <div class="user-avatar">DA</div>
           <div class="user-info">
-            <div class="user-name">Dimas Andika</div>
+            <div class="user-name">User</div>
             <div class="user-plan">Free Plan</div>
           </div>
           <i class="fas fa-chevron-down" style="font-size: 0.65rem; color: var(--text-muted); margin-left: 4px;"></i>
@@ -158,236 +133,165 @@
       </div>
     </div>
 
-    <!-- Quick Start -->
-    <div class="quick-start" id="quick-start-card">
-      <div class="quick-start-content">
-        <h3>Quick Start</h3>
-        <p class="subtitle">Mulai scraping dalam 3 langkah mudah</p>
-        <div class="steps">
-          <div class="step">
-            <div class="step-number">1</div>
-            <div class="step-icon"><i class="fas fa-link"></i></div>
-            <div class="step-label">Masukkan URL</div>
-            <div class="step-desc">Input satu atau lebih URL target scraping</div>
+    <!-- ===== PAGE: DASHBOARD ===== -->
+    <div class="page-section active" id="page-dashboard">
+      <!-- Quick Start -->
+      <div class="quick-start" id="quick-start-card">
+        <div class="quick-start-content">
+          <h3>Quick Start</h3>
+          <p class="subtitle">Mulai scraping dalam 3 langkah mudah</p>
+          <div class="steps">
+            <div class="step">
+              <div class="step-number">1</div>
+              <div class="step-icon"><i class="fas fa-link"></i></div>
+              <div class="step-label">Masukkan URL</div>
+              <div class="step-desc">Input satu atau lebih URL target scraping</div>
+            </div>
+            <div class="step-arrow"><i class="fas fa-arrow-right"></i></div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <div class="step-icon"><i class="fas fa-brain"></i></div>
+              <div class="step-label">AI Ekstraksi Data</div>
+              <div class="step-desc">AI akan mengekstrak data secara otomatis</div>
+            </div>
+            <div class="step-arrow"><i class="fas fa-arrow-right"></i></div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <div class="step-icon"><i class="fas fa-comments"></i></div>
+              <div class="step-label">Chat & Analisis</div>
+              <div class="step-desc">Tanyakan apa saja tentang data Anda</div>
+            </div>
           </div>
-          <div class="step-arrow"><i class="fas fa-arrow-right"></i></div>
-          <div class="step">
-            <div class="step-number">2</div>
-            <div class="step-icon"><i class="fas fa-brain"></i></div>
-            <div class="step-label">AI Ekstraksi Data</div>
-            <div class="step-desc">AI akan mengekstrak data secara otomatis</div>
-          </div>
-          <div class="step-arrow"><i class="fas fa-arrow-right"></i></div>
-          <div class="step">
-            <div class="step-number">3</div>
-            <div class="step-icon"><i class="fas fa-comments"></i></div>
-            <div class="step-label">Chat & Analisis</div>
-            <div class="step-desc">Tanyakan apa saja tentang data Anda</div>
+        </div>
+        <div class="quick-start-illustration">
+          <div class="illustration-placeholder">
+            <i class="fas fa-globe"></i>
           </div>
         </div>
       </div>
-      <div class="quick-start-illustration">
-        <div class="illustration-placeholder">
-          <i class="fas fa-globe"></i>
+
+      <!-- Recent Scraping Tasks (summary) -->
+      <div class="card" id="recent-tasks-card">
+        <div class="card-header">
+          <div><div class="card-title">Recent Scraping Tasks</div></div>
+          <span class="card-action" id="btn-view-all-tasks">View All</span>
+        </div>
+        <table class="data-table" id="tasks-table">
+          <thead>
+            <tr><th>Task</th><th>URL</th><th>Status</th><th>Data Extracted</th><th>Last Run</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: MY SCRAPES ===== -->
+    <div class="page-section" id="page-my-scrapes">
+      <div class="page-toolbar">
+        <button class="btn btn-primary" id="btn-scrape-from-list"><i class="fas fa-plus"></i> New Scrape</button>
+        <div class="toolbar-search">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search scrapes..." id="scrapes-search">
+        </div>
+      </div>
+      <div class="card">
+        <table class="data-table" id="all-scrapes-table">
+          <thead>
+            <tr><th>Task</th><th>URL</th><th>Status</th><th>Items</th><th>Date</th><th>Actions</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty-state" id="scrapes-empty" style="display:none;">
+          <i class="fas fa-spider" style="font-size:2.5rem;color:#cbd5e1;margin-bottom:12px;"></i>
+          <p>Belum ada scraping task. Klik <b>New Scrape</b> untuk mulai!</p>
         </div>
       </div>
     </div>
 
-    <!-- Recent Scraping Tasks -->
-    <div class="card" id="recent-tasks-card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Recent Scraping Tasks</div>
-        </div>
-        <span class="card-action" id="btn-view-all-tasks">View All</span>
+    <!-- ===== PAGE: MONITORING ===== -->
+    <div class="page-section" id="page-monitoring">
+      <div class="page-toolbar">
+        <button class="btn btn-primary" id="btn-add-monitor-page"><i class="fas fa-plus"></i> Add Monitor</button>
       </div>
-      <table class="data-table" id="tasks-table">
-        <thead>
-          <tr>
-            <th>Task</th>
-            <th>URL</th>
-            <th>Status</th>
-            <th>Data Extracted</th>
-            <th>Last Run</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>
-              <div class="task-name">
-                <div class="task-icon ecommerce"><i class="fas fa-shopping-cart"></i></div>
-                <span class="task-label">E-commerce - Produk</span>
-              </div>
-            </td>
-            <td><span class="url-link">tokopedia.com/kategori/elektronik</span></td>
-            <td><span class="status-badge status-success"><span class="status-dot"></span> Success</span></td>
-            <td>126 items</td>
-            <td style="color: var(--text-secondary);">2 minutes ago</td>
-            <td><button class="more-btn"><i class="fas fa-ellipsis-vertical"></i></button></td>
-          </tr>
-          <tr>
-            <td>
-              <div class="task-name">
-                <div class="task-icon news"><i class="fas fa-newspaper"></i></div>
-                <span class="task-label">Berita Teknologi</span>
-              </div>
-            </td>
-            <td><span class="url-link">techcrunch.com</span></td>
-            <td><span class="status-badge status-success"><span class="status-dot"></span> Success</span></td>
-            <td>35 items</td>
-            <td style="color: var(--text-secondary);">15 minutes ago</td>
-            <td><button class="more-btn"><i class="fas fa-ellipsis-vertical"></i></button></td>
-          </tr>
-          <tr>
-            <td>
-              <div class="task-name">
-                <div class="task-icon price"><i class="fas fa-laptop"></i></div>
-                <span class="task-label">Harga Laptop</span>
-              </div>
-            </td>
-            <td><span class="url-link">pricebook.co.id/category/laptop</span></td>
-            <td><span class="status-badge status-success"><span class="status-dot"></span> Success</span></td>
-            <td>89 items</td>
-            <td style="color: var(--text-secondary);">1 hour ago</td>
-            <td><button class="more-btn"><i class="fas fa-ellipsis-vertical"></i></button></td>
-          </tr>
-          <tr>
-            <td>
-              <div class="task-name">
-                <div class="task-icon review"><i class="fas fa-hotel"></i></div>
-                <span class="task-label">Review Hotel</span>
-              </div>
-            </td>
-            <td><span class="url-link">tripadvisor.com/Hotels</span></td>
-            <td><span class="status-badge status-failed"><span class="status-dot"></span> Failed</span></td>
-            <td>0 items</td>
-            <td style="color: var(--text-secondary);">2 hours ago</td>
-            <td><button class="more-btn"><i class="fas fa-ellipsis-vertical"></i></button></td>
-          </tr>
-          <tr>
-            <td>
-              <div class="task-name">
-                <div class="task-icon promo"><i class="fas fa-tag"></i></div>
-                <span class="task-label">Promo Fashion</span>
-              </div>
-            </td>
-            <td><span class="url-link">zalora.co.id/promo</span></td>
-            <td><span class="status-badge status-success"><span class="status-dot"></span> Success</span></td>
-            <td>57 items</td>
-            <td style="color: var(--text-secondary);">3 hours ago</td>
-            <td><button class="more-btn"><i class="fas fa-ellipsis-vertical"></i></button></td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="card">
+        <div id="monitoring-list"></div>
+        <div class="empty-state" id="monitoring-empty" style="display:none;">
+          <i class="fas fa-chart-line" style="font-size:2.5rem;color:#cbd5e1;margin-bottom:12px;"></i>
+          <p>Belum ada URL yang dimonitor. Klik <b>Add Monitor</b> untuk mulai!</p>
+        </div>
+      </div>
     </div>
 
-    <!-- Latest Extracted Data -->
-    <div class="card" id="extracted-data-card">
-      <div class="extracted-data-header">
-        <div class="header-left">
-          <div class="card-title">Latest Extracted Data</div>
-          <div class="card-subtitle">Source: tokopedia.com/kategori/elektronik</div>
+    <!-- ===== PAGE: ALERTS ===== -->
+    <div class="page-section" id="page-alerts">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">All Notifications</div>
+          <span class="card-action" id="btn-mark-all-read">Mark All Read</span>
         </div>
-        <div class="header-right">
-          <button class="btn btn-outline btn-sm" id="btn-view-full-data">
-            <i class="fas fa-expand"></i> View Full Data
-          </button>
-          <button class="btn btn-outline btn-sm" id="btn-export">
-            <i class="fas fa-file-export"></i> Export
-            <i class="fas fa-chevron-down" style="font-size: 0.6rem; margin-left: 2px;"></i>
-          </button>
+        <div id="alerts-list"></div>
+        <div class="empty-state" id="alerts-empty" style="display:none;">
+          <i class="fas fa-bell-slash" style="font-size:2.5rem;color:#cbd5e1;margin-bottom:12px;"></i>
+          <p>Belum ada notifikasi.</p>
         </div>
-      </div>
-      <table class="extracted-table" id="extracted-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Nama Produk</th>
-            <th>Harga</th>
-            <th>Rating</th>
-            <th>Toko</th>
-            <th>Link</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>1</td>
-            <td>iPhone 15 Pro Max 256GB</td>
-            <td>Rp 21.999.000</td>
-            <td><span class="rating">4.9 <i class="fas fa-star star"></i></span></td>
-            <td>Apple Official Store</td>
-            <td><span class="url-link">/product/123456</span></td>
-          </tr>
-          <tr>
-            <td>2</td>
-            <td>Samsung Galaxy S24 Ultra</td>
-            <td>Rp 18.999.000</td>
-            <td><span class="rating">4.8 <i class="fas fa-star star"></i></span></td>
-            <td>Samsung Official Store</td>
-            <td><span class="url-link">/product/234567</span></td>
-          </tr>
-          <tr>
-            <td>3</td>
-            <td>MacBook Air M2 16GB/512GB</td>
-            <td>Rp 19.499.000</td>
-            <td><span class="rating">4.9 <i class="fas fa-star star"></i></span></td>
-            <td>Digimap Official Store</td>
-            <td><span class="url-link">/product/345678</span></td>
-          </tr>
-          <tr>
-            <td>4</td>
-            <td>Dell XPS 13 Plus i7/16GB</td>
-            <td>Rp 22.499.000</td>
-            <td><span class="rating">4.7 <i class="fas fa-star star"></i></span></td>
-            <td>Dell Official Store</td>
-            <td><span class="url-link">/product/456789</span></td>
-          </tr>
-          <tr>
-            <td>5</td>
-            <td>Sony WH-1000XM5</td>
-            <td>Rp 5.499.000</td>
-            <td><span class="rating">4.8 <i class="fas fa-star star"></i></span></td>
-            <td>Sony Official Store</td>
-            <td><span class="url-link">/product/567890</span></td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="table-pagination">
-        Showing 1 to 5 of 126 items
       </div>
     </div>
+
+    <!-- ===== PAGE: CHANGE HISTORY ===== -->
+    <div class="page-section" id="page-change-history">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Change Detection History</div>
+        </div>
+        <div id="change-history-list"></div>
+        <div class="empty-state" id="history-empty" style="display:none;">
+          <i class="fas fa-history" style="font-size:2.5rem;color:#cbd5e1;margin-bottom:12px;"></i>
+          <p>Belum ada riwayat perubahan. Mulai monitoring URL untuk mendeteksi perubahan.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: CHAT ===== -->
+    <div class="page-section" id="page-chat">
+      <div class="page-toolbar" style="gap:12px;">
+        <select id="chat-job-selector" class="toolbar-select">
+          <option value="">All Data Sources</option>
+        </select>
+        <button class="btn btn-outline" id="btn-clear-chat-page"><i class="fas fa-trash"></i> Clear Chat</button>
+      </div>
+      <div class="card chat-fullpage">
+        <div class="chat-messages-full" id="chat-messages-full"></div>
+        <div class="chat-input-container-full">
+          <input type="text" class="chat-input" id="chat-input-full" placeholder="Tanyakan apa saja tentang data Anda...">
+          <button class="chat-send-btn" id="btn-chat-send-full"><i class="fas fa-paper-plane"></i></button>
+        </div>
+        <div class="chat-disclaimer">AI hanya menjawab berdasarkan data yang telah di-scrape. Supports: sort, filter, summary, compare, average.</div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: EXPORTS ===== -->
+    <div class="page-section" id="page-exports">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Export Data</div>
+        </div>
+        <div id="exports-list"></div>
+        <div class="empty-state" id="exports-empty" style="display:none;">
+          <i class="fas fa-download" style="font-size:2.5rem;color:#cbd5e1;margin-bottom:12px;"></i>
+          <p>Belum ada data untuk diekspor. Scrape URL terlebih dahulu.</p>
+        </div>
+      </div>
+    </div>
+
   </main>
 
-  <!-- ========== RIGHT PANEL ========== -->
+  <!-- ========== RIGHT PANEL (Dashboard only) ========== -->
   <aside class="right-panel" id="right-panel">
     <!-- Monitoring Status -->
     <div class="card monitoring-card" id="monitoring-status-card">
       <div class="card-header">
         <div class="card-title">Monitoring Status</div>
         <span class="card-action" id="btn-view-all-monitoring">View All</span>
-      </div>
-      <div class="monitor-item">
-        <div class="monitor-icon"><i class="fas fa-globe"></i></div>
-        <div class="monitor-info">
-          <div class="monitor-url">tokopedia.com/kategori/elektronik</div>
-          <div class="monitor-interval">Setiap 6 jam</div>
-        </div>
-        <div class="monitor-status">
-          <div class="monitor-time">1 hour ago</div>
-          <span class="monitor-badge no-changes">No changes</span>
-        </div>
-      </div>
-      <div class="monitor-item">
-        <div class="monitor-icon"><i class="fas fa-globe"></i></div>
-        <div class="monitor-info">
-          <div class="monitor-url">techcrunch.com</div>
-          <div class="monitor-interval">Setiap 12 jam</div>
-        </div>
-        <div class="monitor-status">
-          <div class="monitor-time">3 hours ago</div>
-          <span class="monitor-badge changes-detected">Changes detected</span>
-        </div>
       </div>
     </div>
 
@@ -396,20 +300,6 @@
       <div class="card-header">
         <div class="card-title">Change Summary</div>
         <span class="card-action" id="btn-view-all-changes">View All</span>
-      </div>
-      <div class="change-summary-item">
-        <div class="change-summary-header">
-          <div class="change-source">
-            <div class="change-source-icon"><i class="fas fa-globe"></i></div>
-            techcrunch.com
-          </div>
-          <span class="change-time">3 hours ago</span>
-        </div>
-        <div class="change-label">AI Summary</div>
-        <div class="change-text">
-          Apple merilis MacBook Air M3 baru dengan harga mulai $1,099. Terdapat 2 artikel baru tentang AI automation.
-        </div>
-        <button class="change-view-btn" id="btn-view-changes">View Changes</button>
       </div>
     </div>
 
@@ -420,32 +310,7 @@
         <span class="card-action" id="btn-new-chat">New Chat</span>
       </div>
 
-      <div class="chat-messages" id="chat-messages">
-        <!-- User message -->
-        <div class="chat-message user">
-          <div class="chat-bubble">
-            Produk mana yang paling murah?
-            <div class="chat-time">10:30 AM <span class="chat-check">✓✓</span></div>
-          </div>
-        </div>
-
-        <!-- AI message -->
-        <div class="chat-message ai">
-          <div class="chat-avatar"><i class="fas fa-robot"></i></div>
-          <div class="chat-bubble">
-            Berdasarkan data yang saya temukan, produk termurah adalah Sony WH-1000XM5 dengan harga Rp 5.499.000 dari Sony Official Store.
-            <div class="chat-time">10:30 AM</div>
-          </div>
-        </div>
-
-        <!-- User message -->
-        <div class="chat-message user">
-          <div class="chat-bubble">
-            Tampilkan 5 produk dengan rating tertinggi
-            <div class="chat-time">10:31 AM <span class="chat-check">✓✓</span></div>
-          </div>
-        </div>
-      </div>
+      <div class="chat-messages" id="chat-messages"></div>
 
       <div class="chat-input-container">
         <button class="chat-attach-btn" id="btn-chat-attach"><i class="fas fa-paperclip"></i></button>
