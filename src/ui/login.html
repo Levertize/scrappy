@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Login ke AI Web Scraper — Platform scraping web berbasis AI">
+  <title>AI Web Scraper — Login</title>
+  <link rel="stylesheet" href="css/login.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+<div class="login-container">
+  <!-- Logo -->
+  <div class="login-logo">
+    <div class="logo-icon">
+      <i class="fas fa-robot"></i>
+    </div>
+    <h1>AI Web Scraper</h1>
+    <p>Scrape, extract, and chat with your data</p>
+  </div>
+
+  <!-- Card -->
+  <div class="login-card">
+    <!-- Tabs -->
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" data-tab="login">Login</button>
+      <button class="auth-tab" id="tab-register" data-tab="register">Register</button>
+    </div>
+
+    <!-- Error / Success Messages -->
+    <div class="form-error" id="form-error">
+      <i class="fas fa-exclamation-circle"></i>
+      <span id="error-text"></span>
+    </div>
+    <div class="form-success" id="form-success">
+      <i class="fas fa-check-circle"></i>
+      <span id="success-text"></span>
+    </div>
+
+    <!-- Login Form -->
+    <form class="auth-form active" id="login-form">
+      <div class="form-group">
+        <label class="form-label" for="login-email">Email</label>
+        <div class="form-input-wrapper">
+          <input type="email" class="form-input" id="login-email" placeholder="nama@email.com" required>
+          <i class="fas fa-envelope input-icon"></i>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="login-password">Password</label>
+        <div class="form-input-wrapper">
+          <input type="password" class="form-input" id="login-password" placeholder="Masukkan password" required>
+          <i class="fas fa-lock input-icon"></i>
+          <button type="button" class="password-toggle" data-target="login-password">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn-login">
+        <span class="btn-text">Login</span>
+        <span class="spinner"></span>
+      </button>
+    </form>
+
+    <!-- Register Form -->
+    <form class="auth-form" id="register-form">
+      <div class="form-group">
+        <label class="form-label" for="reg-username">Username</label>
+        <div class="form-input-wrapper">
+          <input type="text" class="form-input" id="reg-username" placeholder="Username Anda" minlength="3" maxlength="30" required>
+          <i class="fas fa-user input-icon"></i>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="reg-email">Email</label>
+        <div class="form-input-wrapper">
+          <input type="email" class="form-input" id="reg-email" placeholder="nama@email.com" required>
+          <i class="fas fa-envelope input-icon"></i>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="reg-password">Password</label>
+        <div class="form-input-wrapper">
+          <input type="password" class="form-input" id="reg-password" placeholder="Min. 6 karakter" minlength="6" required>
+          <i class="fas fa-lock input-icon"></i>
+          <button type="button" class="password-toggle" data-target="reg-password">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btn-register">
+        <span class="btn-text">Buat Akun</span>
+        <span class="spinner"></span>
+      </button>
+    </form>
+  </div>
+
+  <div class="login-footer">
+    &copy; 2026 AI Web Scraper. All rights reserved.
+  </div>
+</div>
+
+<script src="js/login.js"></script>
+</body>
+</html>
