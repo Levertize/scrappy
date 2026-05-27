@@ -796,7 +796,7 @@ async function sendChatMessage(inputEl, containerId) {
     typing.remove();
 
     if (res.ok) {
-      appendChatBubble(container, 'assistant', data.response);
+      appendChatBubble(container, 'assistant', data.message);
     } else {
       appendChatBubble(container, 'assistant', `⚠️ ${data.error?.message || 'Error'}`);
     }
