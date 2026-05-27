@@ -8,6 +8,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { initDatabase } = require('./storage/db');
+const { initScheduler } = require('./scheduler/scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -31,6 +32,8 @@ app.use('/api/auth', require('./api/routes/auth'));
 app.use('/api/scrape', require('./api/routes/scrape'));
 app.use('/api/chat', require('./api/routes/chat'));
 app.use('/api/export', require('./api/routes/export'));
+app.use('/api/schedule', require('./api/routes/schedule'));
+app.use('/api/notifications', require('./api/routes/notifications'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -71,6 +74,9 @@ app.use((err, req, res, next) => {
 function startServer() {
   // Initialize database
   initDatabase();
+
+  // Initialize scheduler (load active monitoring tasks)
+  initScheduler();
 
   app.listen(PORT, () => {
     console.log('');
