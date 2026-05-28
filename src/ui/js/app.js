@@ -34,6 +34,104 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function showConfirm(title, message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-dialog-overlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      z-index: 9999; display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s ease-out;
+    `;
+
+    const dialog = document.createElement('div');
+    dialog.className = 'custom-dialog';
+    dialog.style.cssText = `
+      background: #ffffff; width: 440px; max-width: 90%; border-radius: 12px;
+      padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      border: 1px solid #e2e8f0; animation: scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    `;
+
+    dialog.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+        <div style="width:40px;height:40px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;color:#ef4444;flex-shrink:0;">
+          <i class="fas fa-triangle-exclamation" style="font-size:1.2rem;"></i>
+        </div>
+        <h4 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0;">${escapeHtml(title)}</h4>
+      </div>
+      <p style="font-size:0.9rem;color:#64748b;line-height:1.5;margin-bottom:24px;">${escapeHtml(message)}</p>
+      <div style="display:flex;justify-content:flex-end;gap:12px;">
+        <button id="custom-confirm-cancel" style="padding:9px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:white;color:#64748b;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;">Batal</button>
+        <button id="custom-confirm-ok" style="padding:9px 16px;border-radius:8px;background:linear-gradient(135deg, #ef4444, #dc2626);color:white;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;box-shadow:0 2px 4px rgba(239,68,68,0.2);">Hapus</button>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const btnCancel = dialog.querySelector('#custom-confirm-cancel');
+    const btnOk = dialog.querySelector('#custom-confirm-ok');
+
+    btnCancel.addEventListener('mouseenter', () => btnCancel.style.background = '#f8fafc');
+    btnCancel.addEventListener('mouseleave', () => btnCancel.style.background = 'white');
+    btnOk.addEventListener('mouseenter', () => btnOk.style.transform = 'translateY(-1px)');
+    btnOk.addEventListener('mouseleave', () => btnOk.style.transform = 'none');
+
+    const closeDialog = (resVal) => {
+      overlay.remove();
+      resolve(resVal);
+    };
+
+    btnCancel.addEventListener('click', () => closeDialog(false));
+    btnOk.addEventListener('click', () => closeDialog(true));
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeDialog(false);
+    });
+  });
+}
+
+function showToast(message, type = 'success') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = `
+      position: fixed; top: 24px; right: 24px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 12px; max-width: 380px; width: 90%;
+    `;
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  let bg = '#10b981';
+  let icon = 'fa-circle-check';
+  if (type === 'error') {
+    bg = '#ef4444';
+    icon = 'fa-circle-xmark';
+  } else if (type === 'info') {
+    bg = '#3b82f6';
+    icon = 'fa-circle-info';
+  }
+
+  toast.style.cssText = `
+    background: #ffffff; color: #1e293b; border-left: 4px solid ${bg};
+    padding: 14px 16px; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    display: flex; align-items: center; gap: 12px; font-size: 0.88rem; font-weight: 500;
+    animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1), fadeOut 0.2s ease-in 2.8s forwards;
+    border: 1px solid #e2e8f0;
+  `;
+
+  toast.innerHTML = `
+    <i class="fas ${icon}" style="color:${bg}; font-size: 1.1rem; flex-shrink: 0;"></i>
+    <div style="flex:1; line-height: 1.4;">${escapeHtml(message)}</div>
+    <button style="color:#94a3b8; cursor:pointer; font-size: 1.2rem; background:none; border:none;" onclick="this.parentElement.remove()">&times;</button>
+  `;
+
+  container.appendChild(toast);
+  setTimeout(() => { if (toast && toast.parentNode) toast.remove(); }, 3000);
+}
+
 function getTimeAgo(dateStr) {
   if (!dateStr) return '';
   const now = new Date();
@@ -95,6 +193,58 @@ function navigateTo(page) {
   const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
   if (navItem) navItem.classList.add('active');
 
+  // Toggle sidebar collapse state and toggle button visibility based on page
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebar-toggle-btn');
+  if (sidebar && toggleBtn) {
+    if (page === 'dashboard') {
+      toggleBtn.style.display = 'flex';
+      
+      // Restore user's collapsed preference on dashboard
+      const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+      if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+        const icon = toggleBtn.querySelector('i');
+        if (icon) icon.className = 'fas fa-chevron-right';
+      } else {
+        sidebar.classList.remove('collapsed');
+        const icon = toggleBtn.querySelector('i');
+        if (icon) icon.className = 'fas fa-chevron-left';
+      }
+    } else {
+      toggleBtn.style.display = 'none';
+      
+      // Force sidebar to be expanded on other pages
+      sidebar.classList.remove('collapsed');
+    }
+  }
+
+  // Toggle right panel collapse state and toggle button visibility based on page
+  const rightPanel = document.getElementById('right-panel');
+  const rightToggleBtn = document.getElementById('right-panel-toggle-btn');
+  if (rightPanel && rightToggleBtn) {
+    if (page === 'dashboard') {
+      rightToggleBtn.style.display = 'flex';
+      
+      // Restore user's collapsed preference on dashboard
+      const isRightCollapsed = localStorage.getItem('right-panel-collapsed') === 'true';
+      if (isRightCollapsed) {
+        rightPanel.classList.add('collapsed');
+        const icon = rightToggleBtn.querySelector('i');
+        if (icon) icon.className = 'fas fa-chevron-left';
+      } else {
+        rightPanel.classList.remove('collapsed');
+        const icon = rightToggleBtn.querySelector('i');
+        if (icon) icon.className = 'fas fa-chevron-right';
+      }
+    } else {
+      rightToggleBtn.style.display = 'none';
+      
+      // Force right panel to be expanded when returning/navigating
+      rightPanel.classList.remove('collapsed');
+    }
+  }
+
   // Scroll to top
   document.getElementById('main-content').scrollTop = 0;
 
@@ -110,6 +260,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initUserProfile();
   initNavigation();
+  initSidebarToggle();
+  initRightPanelToggle();
   initLogout();
   initNotificationBtn();
   initChatWidgets();
@@ -212,6 +364,44 @@ function initNavigation() {
 
   const viewAllChanges = document.getElementById('btn-view-all-changes');
   if (viewAllChanges) viewAllChanges.addEventListener('click', () => navigateTo('change-history'));
+}
+
+function initSidebarToggle() {
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebar-toggle-btn');
+  if (!sidebar || !toggleBtn) return;
+
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const collapsed = sidebar.classList.toggle('collapsed');
+    localStorage.setItem('sidebar-collapsed', collapsed);
+    
+    const icon = toggleBtn.querySelector('i');
+    if (icon) {
+      icon.className = collapsed 
+        ? 'fas fa-chevron-right' 
+        : 'fas fa-chevron-left';
+    }
+  });
+}
+
+function initRightPanelToggle() {
+  const rightPanel = document.getElementById('right-panel');
+  const toggleBtn = document.getElementById('right-panel-toggle-btn');
+  if (!rightPanel || !toggleBtn) return;
+
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const collapsed = rightPanel.classList.toggle('collapsed');
+    localStorage.setItem('right-panel-collapsed', collapsed);
+    
+    const icon = toggleBtn.querySelector('i');
+    if (icon) {
+      icon.className = collapsed 
+        ? 'fas fa-chevron-left' 
+        : 'fas fa-chevron-right';
+    }
+  });
 }
 
 /* ============================================
@@ -339,6 +529,45 @@ async function loadPageDashboard() {
   loadDashboardTasks();
   loadMonitoringWidget();
   loadChangeWidget();
+  loadDashboardChatHistory();
+}
+
+async function loadDashboardChatHistory() {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="text-align:center;padding:20px;color:#94a3b8;">
+      <i class="fas fa-spinner fa-spin" style="font-size:1.5rem;margin-bottom:8px;display:block;color:#cbd5e1;"></i>
+      <p style="font-size:0.8rem;">Memuat riwayat chat...</p>
+    </div>
+  `;
+
+  try {
+    const res = await apiFetch('/api/chat/history');
+    if (res.ok) {
+      const { messages } = await res.json();
+      container.innerHTML = '';
+      
+      if (messages.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center;padding:20px;color:#94a3b8;">
+            <i class="fas fa-comments" style="font-size:1.8rem;margin-bottom:8px;display:block;color:#cbd5e1;"></i>
+            <p style="font-size:0.8rem;">Tanyakan tentang data Anda.</p>
+          </div>`;
+      } else {
+        messages.forEach(m => appendChatBubble(container, m.role, m.content));
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  } catch (err) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:20px;color:#ef4444;">
+        <i class="fas fa-circle-exclamation" style="font-size:1.8rem;margin-bottom:8px;display:block;"></i>
+        <p style="font-size:0.8rem;">Gagal memuat riwayat.</p>
+      </div>
+    `;
+  }
 }
 
 async function loadDashboardTasks() {
@@ -529,10 +758,20 @@ async function loadPageMyScrapes() {
 }
 
 async function deleteJob(jobId) {
-  if (!confirm('Delete this scrape job?')) return;
-  await apiFetch(`/api/scrape/${jobId}`, { method: 'DELETE' });
-  loadPageMyScrapes();
-  loadSidebarStats();
+  const confirmed = await showConfirm('Hapus Scraping Task', 'Apakah Anda yakin ingin menghapus scraping task ini beserta seluruh data hasilnya?');
+  if (!confirmed) return;
+  try {
+    const res = await apiFetch(`/api/scrape/${jobId}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast('Scraping task berhasil dihapus.');
+      loadPageMyScrapes();
+      loadSidebarStats();
+    } else {
+      showToast('Gagal menghapus scraping task.', 'error');
+    }
+  } catch (err) {
+    showToast(`Gagal menghapus: ${err.message}`, 'error');
+  }
 }
 
 /* ============================================
@@ -587,10 +826,20 @@ async function toggleSchedule(id, currentStatus) {
 }
 
 async function deleteSchedule(id) {
-  if (!confirm('Delete this monitoring schedule?')) return;
-  await apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
-  loadPageMonitoring();
-  loadSidebarStats();
+  const confirmed = await showConfirm('Hapus Jadwal Monitoring', 'Apakah Anda yakin ingin menghapus jadwal monitoring ini?');
+  if (!confirmed) return;
+  try {
+    const res = await apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast('Jadwal monitoring berhasil dihapus.');
+      loadPageMonitoring();
+      loadSidebarStats();
+    } else {
+      showToast('Gagal menghapus jadwal monitoring.', 'error');
+    }
+  } catch (err) {
+    showToast(`Gagal menghapus: ${err.message}`, 'error');
+  }
 }
 
 /* ============================================
@@ -707,60 +956,313 @@ function initChatWidgets() {
     chatInputFull.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChatMessage(chatInputFull, 'chat-messages-full'); });
   }
 
-  // New chat button
+  // New chat button (Sidebar Widget on Dashboard)
   const newChatBtn = document.getElementById('btn-new-chat');
   if (newChatBtn) newChatBtn.addEventListener('click', async () => {
-    await apiFetch('/api/chat/history', { method: 'DELETE' });
-    const container = document.getElementById('chat-messages');
-    if (container) container.innerHTML = '';
+    const confirmed = await showConfirm('Hapus Riwayat Chat', 'Apakah Anda yakin ingin menghapus seluruh riwayat chat untuk asisten global?');
+    if (!confirmed) return;
+
+    try {
+      const res = await apiFetch('/api/chat/history', { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Riwayat chat berhasil dihapus.');
+        const container = document.getElementById('chat-messages');
+        if (container) container.innerHTML = '';
+      } else {
+        showToast('Gagal menghapus riwayat chat.', 'error');
+      }
+    } catch (err) {
+      showToast(`Gagal menghapus riwayat chat: ${err.message}`, 'error');
+    }
   });
 
+  // Clear Chat Button (Fullpage Chat)
   const clearChatBtn = document.getElementById('btn-clear-chat-page');
   if (clearChatBtn) clearChatBtn.addEventListener('click', async () => {
-    await apiFetch('/api/chat/history', { method: 'DELETE' });
-    const container = document.getElementById('chat-messages-full');
-    if (container) container.innerHTML = '';
+    const activeSourceName = document.getElementById('chat-active-source-name')?.textContent || 'percakapan ini';
+    const confirmed = await showConfirm('Hapus Riwayat Chat', `Apakah Anda yakin ingin menghapus seluruh riwayat chat untuk "${activeSourceName}"?`);
+    if (!confirmed) return;
+
+    let url = '/api/chat/history';
+    if (activeChatJobId) {
+      url += `?jobId=${activeChatJobId}`;
+    }
+    try {
+      const res = await apiFetch(url, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('Riwayat chat berhasil dihapus.');
+        activeChatJobId = null;
+        await loadPageChat();
+      } else {
+        showToast('Gagal menghapus riwayat chat.', 'error');
+      }
+    } catch (err) {
+      showToast(`Gagal menghapus riwayat chat: ${err.message}`, 'error');
+    }
   });
+
+  // Wire "+" New Chat Page button (in Fullpage Chat Sidebar)
+  const newChatPageBtn = document.getElementById('btn-new-chat-page');
+  const newChatDropdown = document.getElementById('new-chat-dropdown');
+  if (newChatPageBtn && newChatDropdown) {
+    newChatPageBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const isVisible = newChatDropdown.style.display === 'block';
+      if (isVisible) {
+        newChatDropdown.style.display = 'none';
+      } else {
+        newChatDropdown.style.display = 'block';
+        newChatDropdown.innerHTML = '<div style="padding:10px;text-align:center;color:#94a3b8;font-size:0.8rem;"><i class="fas fa-spinner fa-spin"></i> Memuat data...</div>';
+        
+        try {
+          const [scrapeRes, activeJobsRes] = await Promise.all([
+            apiFetch('/api/scrape'),
+            apiFetch('/api/chat/active-jobs')
+          ]);
+          
+          if (scrapeRes.ok && activeJobsRes.ok) {
+            const { jobs } = await scrapeRes.json();
+            const { activeJobIds } = await activeJobsRes.json();
+            
+            const successJobs = jobs.filter(j => j.status === 'success');
+            // Filter out jobs that already have active chats in the sidebar
+            const availableJobs = successJobs.filter(j => !activeJobIds.includes(j.id));
+            
+            newChatDropdown.innerHTML = '';
+            
+            if (availableJobs.length === 0) {
+              newChatDropdown.innerHTML = '<div style="padding:12px;text-align:center;color:#94a3b8;font-size:0.8rem;">Semua data source sudah ada di chat.</div>';
+            } else {
+              availableJobs.forEach(job => {
+                const item = document.createElement('div');
+                item.className = 'new-chat-dropdown-item';
+                
+                let displayUrl = job.url;
+                try { displayUrl = new URL(job.url).hostname; } catch {}
+                
+                item.innerHTML = `
+                  <div class="new-chat-dropdown-title">${escapeHtml(job.name)}</div>
+                  <div class="new-chat-dropdown-subtitle">${escapeHtml(displayUrl)}</div>
+                `;
+                item.addEventListener('click', async () => {
+                  newChatDropdown.style.display = 'none';
+                  activeChatJobId = job.id;
+                  
+                  // Clear previous history to start a fresh chat session
+                  try {
+                    await apiFetch(`/api/chat/history?jobId=${job.id}`, { method: 'DELETE' });
+                  } catch (err) {
+                    console.error('Failed to clear old chat history:', err);
+                  }
+                  
+                  // Refresh sidebar list and load chat screen layout
+                  await loadPageChat();
+                  
+                  // Clear container and trigger automatic AI summary/analysis
+                  const container = document.getElementById('chat-messages-full');
+                  if (container) {
+                    container.innerHTML = '';
+                    
+                    // Show custom loading indicator
+                    const typing = document.createElement('div');
+                    typing.className = 'chat-message ai';
+                    typing.innerHTML = '<div class="chat-avatar"><i class="fas fa-robot"></i></div><div class="chat-bubble"><i class="fas fa-spinner fa-spin"></i> AI sedang menganalisis data dan membuat rangkuman...</div>';
+                    container.appendChild(typing);
+                    container.scrollTop = container.scrollHeight;
+                    
+                    try {
+                      const res = await apiFetch('/api/chat', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          message: "Tolong buat rangkuman singkat dari data scraping ini. Sebutkan nama tugas scraping, URL-nya, dan rangkuman data penting yang berhasil di-scrape. Setelah itu perkenalkan diri dan tawarkan bantuan.",
+                          jobId: job.id
+                        }),
+                      });
+                      typing.remove();
+                      if (res.ok) {
+                        const data = await res.json();
+                        appendChatBubble(container, 'assistant', data.message);
+                      } else {
+                        appendChatBubble(container, 'assistant', '⚠️ Gagal membuat rangkuman otomatis.');
+                      }
+                    } catch (err) {
+                      typing.remove();
+                      appendChatBubble(container, 'assistant', `⚠️ Gagal membuat rangkuman otomatis: ${err.message}`);
+                    }
+                    container.scrollTop = container.scrollHeight;
+                  }
+                });
+                newChatDropdown.appendChild(item);
+              });
+            }
+          } else {
+            newChatDropdown.innerHTML = '<div style="padding:12px;text-align:center;color:#ef4444;font-size:0.8rem;">Gagal memuat.</div>';
+          }
+        } catch (err) {
+          newChatDropdown.innerHTML = `<div style="padding:12px;text-align:center;color:#ef4444;font-size:0.8rem;">Error: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!newChatPageBtn.contains(e.target) && !newChatDropdown.contains(e.target)) {
+        newChatDropdown.style.display = 'none';
+      }
+    });
+  }
 }
 
-async function loadPageChat() {
-  // Load job selector
-  const selector = document.getElementById('chat-job-selector');
-  if (selector) {
-    try {
-      const res = await apiFetch('/api/scrape');
-      if (res.ok) {
-        const { jobs } = await res.json();
-        selector.innerHTML = '<option value="">All Data Sources</option>';
-        jobs.filter(j => j.status === 'success').forEach(j => {
-          selector.innerHTML += `<option value="${j.id}">${escapeHtml(j.name)}</option>`;
-        });
-      }
-    } catch {}
-  }
+let activeChatJobId = null;
 
-  // Load chat history
+async function loadPageChat() {
+  const sourcesList = document.getElementById('chat-sources-list');
+  if (!sourcesList) return;
+
   try {
-    const res = await apiFetch('/api/chat/history');
-    if (res.ok) {
-      const { messages } = await res.json();
-      const container = document.getElementById('chat-messages-full');
-      if (container) {
-        container.innerHTML = '';
-        if (messages.length === 0) {
-          container.innerHTML = `
-            <div style="text-align:center;padding:40px;color:#94a3b8;">
-              <i class="fas fa-comments" style="font-size:2.5rem;margin-bottom:12px;display:block;color:#cbd5e1;"></i>
-              <p style="font-size:0.9rem;">Mulai percakapan dengan AI tentang data Anda.</p>
-              <p style="font-size:0.78rem;margin-top:8px;">Contoh: "Buat rangkuman data", "Urutkan berdasarkan harga", "Bandingkan produk"</p>
-            </div>`;
+    const [scrapeRes, activeJobsRes] = await Promise.all([
+      apiFetch('/api/scrape'),
+      apiFetch('/api/chat/active-jobs')
+    ]);
+
+    if (scrapeRes.ok && activeJobsRes.ok) {
+      const { jobs } = await scrapeRes.json();
+      const { activeJobIds } = await activeJobsRes.json();
+      
+      const successJobs = jobs.filter(j => j.status === 'success');
+      
+      // Filter list of jobs to show in the sidebar:
+      // Show if it has active chat history, or if it is currently selected (activeChatJobId)
+      const chatJobsToShow = successJobs.filter(job => 
+        activeJobIds.includes(job.id) || job.id === activeChatJobId
+      );
+      
+      // Render sources list
+      sourcesList.innerHTML = '';
+      
+      // 1. Add "All Data Sources" item
+      const allItem = document.createElement('div');
+      allItem.className = `chat-source-item ${activeChatJobId === null ? 'active' : ''}`;
+      allItem.dataset.id = 'all';
+      allItem.innerHTML = `
+        <div class="chat-source-name">All Data Sources</div>
+        <div class="chat-source-meta">
+          <span>Global Assistant</span>
+          <span>General</span>
+        </div>
+      `;
+      allItem.addEventListener('click', () => selectChatSource(null, 'All Data Sources'));
+      sourcesList.appendChild(allItem);
+      
+      // 2. Add each active job
+      chatJobsToShow.forEach(job => {
+        const item = document.createElement('div');
+        item.className = `chat-source-item ${activeChatJobId === job.id ? 'active' : ''}`;
+        item.dataset.id = job.id;
+        
+        let displayUrl = job.url;
+        try { displayUrl = new URL(job.url).hostname; } catch {}
+        
+        item.innerHTML = `
+          <div class="chat-source-name">${escapeHtml(job.name)}</div>
+          <div class="chat-source-meta">
+            <span>${escapeHtml(displayUrl)}</span>
+            <span>${getTimeAgo(job.created_at)}</span>
+          </div>
+        `;
+        item.addEventListener('click', () => selectChatSource(job.id, job.name));
+        sourcesList.appendChild(item);
+      });
+      
+      // If we don't have an active selection yet, default to All Data Sources
+      if (activeChatJobId === null) {
+        document.getElementById('chat-active-source-name').textContent = 'All Data Sources';
+      } else {
+        // Double check if active job still exists in successJobs, if not fallback to all
+        const exists = successJobs.some(j => j.id === activeChatJobId);
+        if (!exists) {
+          activeChatJobId = null;
+          document.getElementById('chat-active-source-name').textContent = 'All Data Sources';
+          if (allItem) allItem.classList.add('active');
         } else {
-          messages.forEach(m => appendChatBubble(container, m.role, m.content));
-          container.scrollTop = container.scrollHeight;
+          // Find active job name and display it
+          const activeJob = successJobs.find(j => j.id === activeChatJobId);
+          if (activeJob) {
+            document.getElementById('chat-active-source-name').textContent = activeJob.name;
+          }
         }
       }
     }
-  } catch {}
+  } catch (err) {
+    console.error('Failed to load chat sources:', err);
+  }
+
+  // Load chat messages for current selection
+  await loadChatHistory();
+}
+
+async function selectChatSource(jobId, jobName) {
+  activeChatJobId = jobId;
+  
+  // Update banner
+  document.getElementById('chat-active-source-name').textContent = jobName;
+  
+  // Toggle active class on list items
+  document.querySelectorAll('.chat-source-item').forEach(item => {
+    const isAll = jobId === null && item.dataset.id === 'all';
+    const isJob = jobId !== null && item.dataset.id === jobId;
+    if (isAll || isJob) {
+      item.classList.add('active');
+    } else {
+      item.classList.remove('active');
+    }
+  });
+
+  // Load history
+  await loadChatHistory();
+}
+
+async function loadChatHistory() {
+  const container = document.getElementById('chat-messages-full');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="text-align:center;padding:40px;color:#94a3b8;">
+      <i class="fas fa-spinner fa-spin" style="font-size:2.5rem;margin-bottom:12px;display:block;color:#cbd5e1;"></i>
+      <p style="font-size:0.9rem;">Memuat riwayat chat...</p>
+    </div>
+  `;
+
+  try {
+    let url = `/api/chat/history?_t=${Date.now()}`;
+    if (activeChatJobId) {
+      url += `&jobId=${activeChatJobId}`;
+    }
+    const res = await apiFetch(url);
+    if (res.ok) {
+      const { messages } = await res.json();
+      container.innerHTML = '';
+      
+      if (messages.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center;padding:40px;color:#94a3b8;">
+            <i class="fas fa-comments" style="font-size:2.5rem;margin-bottom:12px;display:block;color:#cbd5e1;"></i>
+            <p style="font-size:0.9rem;">Mulai percakapan dengan AI tentang data ini.</p>
+            <p style="font-size:0.78rem;margin-top:8px;">Contoh: "Buat rangkuman data", "Urutkan berdasarkan harga", "Bandingkan produk"</p>
+          </div>`;
+      } else {
+        messages.forEach(m => appendChatBubble(container, m.role, m.content));
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  } catch (err) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px;color:#ef4444;">
+        <i class="fas fa-circle-exclamation" style="font-size:2.5rem;margin-bottom:12px;display:block;"></i>
+        <p style="font-size:0.9rem;">Gagal memuat riwayat chat.</p>
+      </div>
+    `;
+  }
 }
 
 async function sendChatMessage(inputEl, containerId) {
@@ -786,8 +1288,7 @@ async function sendChatMessage(inputEl, containerId) {
   container.scrollTop = container.scrollHeight;
 
   try {
-    const jobSelector = document.getElementById('chat-job-selector');
-    const jobId = jobSelector?.value || null;
+    const jobId = (containerId === 'chat-messages') ? null : activeChatJobId;
     const res = await apiFetch('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ message: msg, jobId }),

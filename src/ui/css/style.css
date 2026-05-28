@@ -143,13 +143,12 @@ img {
   display: block;
 }
 
-/* --- Layout Grid --- */
+/* --- Layout Flexbox --- */
 .app-layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
-  grid-template-rows: 1fr;
+  display: flex;
+  flex-direction: row;
   min-height: 100vh;
-  gap: 0;
+  width: 100%;
 }
 
 /* ============================================
@@ -163,10 +162,148 @@ img {
   height: 100vh;
   position: sticky;
   top: 0;
-  z-index: 100;
-  padding: var(--space-lg) 0;
-  overflow-y: auto;
+  z-index: 150; /* Establish high stacking context */
+  width: var(--sidebar-width);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible; /* Prevent clipping of absolutely positioned child toggle button */
+  flex-shrink: 0;
 }
+
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-lg) 0;
+  transition: padding 0.3s ease;
+}
+
+.sidebar-toggle-btn {
+  position: absolute;
+  top: 24px;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--gray-300);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+  z-index: 200; /* Higher than sidebar wrapper to render on top of adjacent elements */
+  transition: all var(--transition-fast);
+  will-change: transform;
+  transform: translate3d(0, 0, 0); /* Promote to GPU layer to prevent overflow scroll clipping */
+}
+
+.sidebar-toggle-btn:hover {
+  background: var(--primary-600);
+  color: #ffffff;
+  border-color: var(--primary-600);
+  transform: translate3d(0, 0, 0) scale(1.1);
+}
+
+.sidebar-toggle-btn i {
+  font-size: 0.75rem;
+  transition: transform 0.3s ease;
+}
+
+/* Collapsed Sidebar overrides */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+.sidebar.collapsed .sidebar-inner {
+  padding: var(--space-lg) 0;
+}
+
+.sidebar.collapsed .sidebar-logo {
+  padding: 0;
+  justify-content: center;
+  margin-bottom: var(--space-xl);
+}
+
+.sidebar.collapsed .sidebar-logo h1 {
+  opacity: 0;
+  width: 0;
+  pointer-events: none;
+  overflow: hidden;
+  margin: 0;
+}
+
+.sidebar .nav-item {
+  transition: gap 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+}
+
+.sidebar .nav-item .nav-text {
+  transition: opacity 0.2s ease, max-width 0.2s ease;
+  opacity: 1;
+  max-width: 150px;
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .nav-item {
+  gap: 0;
+  padding: var(--space-sm) 0;
+  justify-content: center;
+  margin: 2px var(--space-xs);
+}
+
+.sidebar.collapsed .nav-item .nav-text {
+  opacity: 0;
+  max-width: 0;
+  pointer-events: none;
+}
+
+.sidebar .nav-group-label {
+  transition: opacity 0.2s ease, max-height 0.2s ease, margin 0.2s ease, padding 0.2s ease;
+  opacity: 1;
+  max-height: 20px;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .nav-group-label {
+  opacity: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.sidebar .sidebar-plan {
+  transition: opacity 0.2s ease, max-height 0.3s ease, margin 0.3s ease, padding 0.3s ease, border-color 0.2s ease;
+  opacity: 1;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .sidebar-plan {
+  opacity: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.sidebar .sidebar-footer {
+  transition: opacity 0.2s ease, padding 0.2s ease;
+  opacity: 1;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .sidebar-footer {
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
 
 .sidebar-logo {
   display: flex;
@@ -195,6 +332,8 @@ img {
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
+  transition: opacity 0.25s ease, width 0.25s ease, margin 0.25s ease;
+  white-space: nowrap;
 }
 
 .sidebar-nav {
@@ -340,6 +479,10 @@ img {
   padding: var(--space-xl) var(--space-2xl);
   overflow-y: auto;
   height: 100vh;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 10;
 }
 
 /* Header */
@@ -859,11 +1002,71 @@ img {
   height: 100vh;
   position: sticky;
   top: 0;
-  overflow-y: auto;
-  padding: var(--space-xl) var(--space-base);
+  width: var(--right-panel-width);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+  overflow: visible; /* Prevent clipping of toggle button */
+  z-index: 150; /* Establish high stacking context */
+  flex-shrink: 0;
+}
+
+.right-panel-inner {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  width: var(--right-panel-width); /* Fixed width keeps content from layout shifts during collapse */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-xl) var(--space-base);
   gap: var(--space-lg);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0.3s ease;
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.right-panel-toggle-btn {
+  position: absolute;
+  top: 24px;
+  left: -20px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--gray-300);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+  z-index: 200; /* Higher than right-panel wrapper to render on top of adjacent elements */
+  transition: all var(--transition-fast);
+  will-change: transform;
+  transform: translate3d(0, 0, 0); /* Promote to GPU layer to prevent overflow scroll clipping */
+}
+
+.right-panel-toggle-btn:hover {
+  background: var(--primary-600);
+  color: #ffffff;
+  border-color: var(--primary-600);
+  transform: translate3d(0, 0, 0) scale(1.1);
+}
+
+.right-panel-toggle-btn i {
+  font-size: 0.75rem;
+  transition: transform 0.3s ease;
+}
+
+/* Collapsed Right Panel overrides */
+.right-panel.collapsed {
+  width: 0px;
+  border-left-color: transparent;
+}
+
+.right-panel.collapsed .right-panel-inner {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* Monitoring Status */
@@ -1274,20 +1477,12 @@ img {
 }
 
 @media (max-width: 1200px) {
-  .app-layout {
-    grid-template-columns: var(--sidebar-width) 1fr;
-  }
-
   .right-panel {
     display: none;
   }
 }
 
 @media (max-width: 768px) {
-  .app-layout {
-    grid-template-columns: 1fr;
-  }
-
   .sidebar {
     display: none;
   }
@@ -1328,12 +1523,17 @@ img {
 }
 
 /* Right panel only shows on dashboard */
-.app-layout.hide-right-panel {
-  grid-template-columns: var(--sidebar-width) 1fr;
-}
 
 .app-layout.hide-right-panel .right-panel {
-  display: none;
+  width: 0px;
+  border-left-color: transparent;
+}
+
+.app-layout.hide-right-panel .right-panel .right-panel-inner {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* --- Page Toolbar --- */
@@ -1618,21 +1818,213 @@ img {
 }
 
 /* --- Full-page Chat --- */
-.chat-fullpage {
+.chat-split-container {
+  display: flex;
+  height: calc(100vh - 220px);
+  min-height: 500px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  animation: fadeInUp 0.5s ease-out backwards;
+}
+
+.chat-sidebar-left {
+  width: 280px;
+  border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 220px);
-  min-height: 400px;
+  background: var(--gray-50);
+  flex-shrink: 0;
+}
+
+.chat-sidebar-header {
+  padding: var(--space-md) var(--space-base);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+}
+
+.chat-sidebar-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.chat-sources-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+.chat-source-item {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid transparent;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.chat-source-item:hover {
+  background: var(--primary-50);
+  border-color: var(--primary-100);
+}
+
+.chat-source-item.active {
+  background: var(--primary-50);
+  border-color: var(--primary-200);
+  border-left: 4px solid var(--primary-600);
+  padding-left: calc(var(--space-md) - 3px);
+}
+
+.chat-source-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-source-item.active .chat-source-name {
+  color: var(--primary-700);
+}
+
+.chat-source-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  min-width: 0;
+  height: 100%;
+}
+
+.chat-active-source-banner {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--gray-50);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.chat-active-source-banner i {
+  color: var(--primary-500);
 }
 
 .chat-messages-full {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-base);
+  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  background: #fafafa;
 }
+
+.btn-clear-history {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-clear-history:hover {
+  background: var(--error-light);
+  color: var(--error);
+}
+
+.btn-new-chat-session {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-new-chat-session:hover {
+  background: var(--primary-50);
+  color: var(--primary-600);
+}
+
+.new-chat-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  background: white;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  min-width: 240px;
+  max-width: 280px;
+  padding: 4px;
+  animation: fadeInUp 0.2s ease;
+}
+
+.new-chat-dropdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.new-chat-dropdown-item:hover {
+  background: var(--primary-50);
+}
+
+.new-chat-dropdown-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.new-chat-dropdown-subtitle {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 
 .chat-input-container-full {
   display: flex;
@@ -1768,4 +2160,19 @@ img {
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }

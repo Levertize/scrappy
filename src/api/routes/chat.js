@@ -45,14 +45,41 @@ router.post('/', async (req, res) => {
     console.error('Chat error:', err);
 
     // Friendly error for API key issues
-    if (err.message.includes('API key')) {
+    if (err.message.includes('API key') || err.message.includes('API_KEY')) {
       return res.status(503).json({
         error: { message: 'AI service not configured. Please set your Gemini API key.' },
       });
     }
 
+    // Friendly error for rate limits / quota issues
+    const errMsg = err.message.toLowerCase();
+    if (errMsg.includes('quota') || errMsg.includes('limit') || errMsg.includes('rate')) {
+      return res.status(429).json({
+        error: { message: 'Batas kuota Gemini API terlampaui (rate limit). Silakan tunggu sebentar dan coba lagi.' },
+      });
+    }
+
     res.status(500).json({
       error: { message: 'Failed to process chat message.' },
+    });
+  }
+});
+
+/**
+ * GET /api/chat/active-jobs
+ * Get list of job IDs that have active chat history
+ */
+router.get('/active-jobs', (req, res) => {
+  try {
+    const rows = db.prepare(
+      'SELECT DISTINCT job_id FROM chat_messages WHERE user_id = ? AND job_id IS NOT NULL'
+    ).all(req.user.id);
+    const activeJobIds = rows.map(r => r.job_id);
+    res.json({ activeJobIds });
+  } catch (err) {
+    console.error('Active jobs error:', err);
+    res.status(500).json({
+      error: { message: 'Failed to get active chat jobs.' },
     });
   }
 });
@@ -72,7 +99,7 @@ router.get('/history', (req, res) => {
       ).all(req.user.id, jobId);
     } else {
       messages = db.prepare(
-        'SELECT id, role, content, created_at FROM chat_messages WHERE user_id = ? ORDER BY created_at ASC LIMIT 100'
+        'SELECT id, role, content, created_at FROM chat_messages WHERE user_id = ? AND job_id IS NULL ORDER BY created_at ASC LIMIT 100'
       ).all(req.user.id);
     }
 

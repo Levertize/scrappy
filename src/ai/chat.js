@@ -165,7 +165,7 @@ function clearChatHistory(userId, jobId = null) {
   if (jobId) {
     db.prepare('DELETE FROM chat_messages WHERE user_id = ? AND job_id = ?').run(userId, jobId);
   } else {
-    db.prepare('DELETE FROM chat_messages WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM chat_messages WHERE user_id = ? AND job_id IS NULL').run(userId);
   }
 }
 
